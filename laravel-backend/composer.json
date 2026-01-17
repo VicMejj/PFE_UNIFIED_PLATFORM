@@ -1,0 +1,16 @@
+{
+    "require": {
+        "laravel/sanctum": "^4.2",
+        "barryvdh/laravel-dompdf": "^3.1",
+        "maatwebsite/excel": "^3.1",
+        "spatie/laravel-permission": "^6.24"
+    },
+    "require-dev": {
+        "laravel/passport": "^13.4"
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+}
