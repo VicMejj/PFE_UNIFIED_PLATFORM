@@ -8,19 +8,15 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
+     *
+     * This is the same structure as `php artisan cache:table` would generate.
      */
     public function up(): void
     {
         Schema::create('cache', function (Blueprint $table) {
-            $table->string('key')->primary();
-            $table->mediumText('value');
-            $table->integer('expiration')->index();
-        });
-
-        Schema::create('cache_locks', function (Blueprint $table) {
-            $table->string('key')->primary();
-            $table->string('owner');
-            $table->integer('expiration')->index();
+            $table->string('key')->unique();
+            $table->text('value');
+            $table->unsignedInteger('expiration');
         });
     }
 
@@ -30,6 +26,5 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('cache');
-        Schema::dropIfExists('cache_locks');
     }
 };

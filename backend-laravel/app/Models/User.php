@@ -2,47 +2,62 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Spatie\Permission\Traits\HasRoles;
+use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 
-class User extends Authenticatable
+class User extends Authenticatable implements JWTSubject
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
+    protected $with = ['roles'];
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
-        'name',
-        'email',
-        'password',
+        'name', 'email', 'password', 'type', 'avatar', 'lang',
+        'plan', 'plan_expire_date', 'requested_plan', 'trial_expire_date',
+        'trial_plan', 'is_login_enable', 'storage_limit', 'last_login',
+        'is_active', 'referral_code', 'used_referral_code', 'commission_amount',
+        'active_status', 'is_disable', 'google2fa_secret', 'google2fa_enable',
+        'dark_mode', 'messenger_color', 'created_by',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
+    protected $hidden = ['password', 'remember_token', 'google2fa_secret'];
+
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'last_login' => 'datetime',
+        'storage_limit' => 'float',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
+    public function employees()
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
+        return $this->hasMany(Employee::class);
+    }
+
+    // convenience helpers
+    public function isActive(): bool
+    {
+        return $this->is_active === 1;
+    }
+
+    public function assignDefaultRole()
+    {
+        if (! $this->roles()->exists()) {
+            $this->assignRole('user');
+        }
+    }
+
+    /**
+     * JWTSubject implementation required by jwt-auth package
+     */
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    public function getJWTCustomClaims()
+    {
+        return [];
     }
 }

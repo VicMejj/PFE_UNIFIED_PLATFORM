@@ -1,0 +1,2144 @@
+{
+  "info": {
+    "name": "Unified Platform - HR Management API",
+    "description": "Complete API documentation for the Unified Platform HR Management System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "🔐 Authentication",
+      "description": "Public authentication endpoints - no token required",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/core/auth/logout",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "core", "auth", "logout"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/core/auth/me",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "core", "auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/core/auth/refresh",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "core", "auth", "refresh"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 Core - Users",
+      "description": "User management endpoints",
+      "item": [
+        {
+          "name": "List All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/core/users?per_page=15&search=john&role=admin",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "core", "users"],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15"
+                },
+                {
+                  "key": "search",
+                  "value": "john"
+                },
+                {
+                  "key": "role",
+                  "value": "admin"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Smith\",\n  \"email\": \"jane@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"role_id\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/core/users",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "core", "users"]
+            }
+          }
+        },
+        {
+          "name": "Get User Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/core/users/1",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "core", "users", "1"]
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Smith Updated\",\n  \"email\": \"jane.updated@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/core/users/1",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "core", "users", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/core/users/1",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "core", "users", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏢 Organization",
+      "description": "Company structure management - Branches, Departments, Designations",
+      "item": [
+        {
+          "name": "Branches",
+          "item": [
+            {
+              "name": "List Branches",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/organization/branches",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "organization", "branches"]
+                }
+              }
+            },
+            {
+              "name": "Create Branch",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Dakar HQ\",\n  \"code\": \"DAK-01\",\n  \"address\": \"123 Main St, Dakar\",\n  \"city\": \"Dakar\",\n  \"country\": \"Senegal\",\n  \"phone\": \"+221 123 456 789\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/organization/branches",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "organization", "branches"]
+                }
+              }
+            },
+            {
+              "name": "Get Branch",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/organization/branches/1",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "organization", "branches", "1"]
+                }
+              }
+            },
+            {
+              "name": "Update Branch",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Dakar HQ Updated\",\n  \"phone\": \"+221 987 654 321\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/organization/branches/1",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "organization", "branches", "1"]
+                }
+              }
+            },
+            {
+              "name": "Delete Branch",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/organization/branches/1",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "organization", "branches", "1"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Departments",
+          "item": [
+            {
+              "name": "List Departments",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/organization/departments",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "organization", "departments"]
+                }
+              }
+            },
+            {
+              "name": "Create Department",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Human Resources\",\n  \"code\": \"HR-01\",\n  \"description\": \"Human Resources Department\",\n  \"branch_id\": 1\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/organization/departments",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "organization", "departments"]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "👨‍💼 Employees",
+      "description": "Employee management - CRUD and related documents",
+      "item": [
+        {
+          "name": "List Employees",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/employees?per_page=15&search=john&status=active",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employees"],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15"
+                },
+                {
+                  "key": "search",
+                  "value": "john"
+                },
+                {
+                  "key": "status",
+                  "value": "active"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"John\",\n  \"last_name\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"phone\": \"+221 123 456 789\",\n  \"date_of_birth\": \"1990-05-15\",\n  \"gender\": \"male\",\n  \"nationality\": \"Senegal\",\n  \"id_number\": \"SN123456789\",\n  \"address\": \"123 Main St\",\n  \"city\": \"Dakar\",\n  \"country\": \"Senegal\",\n  \"branch_id\": 1,\n  \"department_id\": 1,\n  \"designation_id\": 1,\n  \"employment_type\": \"permanent\",\n  \"joining_date\": \"2023-01-15\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/employees",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employees"]
+            }
+          }
+        },
+        {
+          "name": "Get Employee Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/employees/1",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employees", "1"]
+            }
+          }
+        },
+        {
+          "name": "Get Turnover Prediction (AI)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/employees/1/turnover-prediction",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employees", "1", "turnover-prediction"]
+            }
+          }
+        },
+        {
+          "name": "Get Employee Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/employees/1/statistics",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employees", "1", "statistics"]
+            }
+          }
+        },
+        {
+          "name": "Employee Awards",
+          "item": [
+            {
+              "name": "List Awards",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/employees/awards",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "employees", "awards"]
+                }
+              }
+            },
+            {
+              "name": "Create Award",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": 1,\n  \"award_type_id\": 1,\n  \"title\": \"Employee of the Month\",\n  \"description\": \"Outstanding performance\",\n  \"award_date\": \"2024-03-01\",\n  \"amount\": 500.00\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/employees/awards",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "employees", "awards"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Employee Transfers",
+          "item": [
+            {
+              "name": "List Transfers",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/employees/transfers",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "employees", "transfers"]
+                }
+              }
+            },
+            {
+              "name": "Create Transfer",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": 1,\n  \"from_branch_id\": 1,\n  \"to_branch_id\": 2,\n  \"from_department_id\": 1,\n  \"to_department_id\": 2,\n  \"transfer_date\": \"2024-04-01\",\n  \"reason\": \"Promotion\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/employees/transfers",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "employees", "transfers"]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🏖️ Leave Management",
+      "description": "Leave requests, approvals, and balance management",
+      "item": [
+        {
+          "name": "List Leave Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leaves?status=pending&employee_id=1",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leaves"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                },
+                {
+                  "key": "employee_id",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Leave Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_id\": 1,\n  \"leave_type_id\": 1,\n  \"start_date\": \"2024-04-01\",\n  \"end_date\": \"2024-04-05\",\n  \"reason\": \"Family vacation\",\n  \"status\": \"pending\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/leaves",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leaves"]
+            }
+          }
+        },
+        {
+          "name": "Approve Leave by Manager",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leaves/1/approve-by-manager",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leaves", "1", "approve-by-manager"]
+            }
+          }
+        },
+        {
+          "name": "Approve Leave by HR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leaves/1/approve-by-hr",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leaves", "1", "approve-by-hr"]
+            }
+          }
+        },
+        {
+          "name": "Reject Leave",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rejection_reason\": \"Insufficient headcount during requested period\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/leaves/1/reject",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leaves", "1", "reject"]
+            }
+          }
+        },
+        {
+          "name": "Get Leave Balances",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/leaves/balances?employee_id=1",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "leaves", "balances"],
+              "query": [
+                {
+                  "key": "employee_id",
+                  "value": "1"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💰 Payroll",
+      "description": "Salary processing, allowances, loans, and deductions",
+      "item": [
+        {
+          "name": "Pay Slips",
+          "item": [
+            {
+              "name": "List Pay Slips",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/pay-slips?employee_id=1&month=2024-03",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "pay-slips"],
+                  "query": [
+                    {
+                      "key": "employee_id",
+                      "value": "1"
+                    },
+                    {
+                      "key": "month",
+                      "value": "2024-03"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Generate Pay Slip",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": 1,\n  \"month\": \"2024-03\",\n  \"basic_salary\": 3000,\n  \"allowances\": 500,\n  \"deductions\": 300\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/pay-slips/1/generate",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "pay-slips", "1", "generate"]
+                }
+              }
+            },
+            {
+              "name": "Preview Pay Slip",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/pay-slips/1/preview",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "pay-slips", "1", "preview"]
+                }
+              }
+            },
+            {
+              "name": "Send Pay Slip Email",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/pay-slips/1/send",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "pay-slips", "1", "send"]
+                }
+              }
+            },
+            {
+              "name": "Download Pay Slip PDF",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/pay-slips/1/download-pdf",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "pay-slips", "1", "download-pdf"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Allowances",
+          "item": [
+            {
+              "name": "List Allowances",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/allowances",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "allowances"]
+                }
+              }
+            },
+            {
+              "name": "Create Allowance",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": 1,\n  \"type\": \"Housing\",\n  \"amount\": 500,\n  \"frequency\": \"monthly\",\n  \"effective_date\": \"2024-03-01\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/allowances",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "allowances"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Loans",
+          "item": [
+            {
+              "name": "List Loans",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/loans",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "loans"]
+                }
+              }
+            },
+            {
+              "name": "Create Loan",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": 1,\n  \"amount\": 5000,\n  \"interest_rate\": 5.5,\n  \"monthly_payment\": 250,\n  \"duration_months\": 24,\n  \"start_date\": \"2024-04-01\",\n  \"notes\": \"Personal loan\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/loans",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "loans"]
+                }
+              }
+            },
+            {
+              "name": "Assess Loan Risk (AI)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/loans/1/assess-risk",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "loans", "1", "assess-risk"]
+                }
+              }
+            },
+            {
+              "name": "Generate Loan Schedule",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/loans/1/schedule",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "loans", "1", "schedule"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deductions",
+          "item": [
+            {
+              "name": "List Deductions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/deductions",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "deductions"]
+                }
+              }
+            },
+            {
+              "name": "Create Deduction",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": 1,\n  \"type\": \"tax\",\n  \"name\": \"Income Tax\",\n  \"amount\": 300,\n  \"frequency\": \"monthly\",\n  \"effective_date\": \"2024-03-01\",\n  \"end_date\": null,\n  \"is_active\": true\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/payroll/deductions",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "payroll", "deductions"]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "⏰ Attendance & Timesheets",
+      "description": "Track employee attendance and work hours",
+      "item": [
+        {
+          "name": "Attendance Records",
+          "item": [
+            {
+              "name": "List Attendance Records",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/attendance/records?employee_id=1&date_from=2024-03-01&date_to=2024-03-31",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "attendance", "records"],
+                  "query": [
+                    {
+                      "key": "employee_id",
+                      "value": "1"
+                    },
+                    {
+                      "key": "date_from",
+                      "value": "2024-03-01"
+                    },
+                    {
+                      "key": "date_to",
+                      "value": "2024-03-31"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Mark Attendance",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": 1,\n  \"date\": \"2024-03-05\",\n  \"check_in\": \"08:30\",\n  \"check_out\": \"17:00\",\n  \"status\": \"present\",\n  \"notes\": \"Regular day\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/attendance/records",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "attendance", "records"]
+                }
+              }
+            },
+            {
+              "name": "Get Attendance Statistics",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/attendance/statistics?employee_id=1&date_from=2024-03-01&date_to=2024-03-31",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "attendance", "statistics"],
+                  "query": [
+                    {
+                      "key": "employee_id",
+                      "value": "1"
+                    },
+                    {
+                      "key": "date_from",
+                      "value": "2024-03-01"
+                    },
+                    {
+                      "key": "date_to",
+                      "value": "2024-03-31"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Timesheets",
+          "item": [
+            {
+              "name": "List Timesheets",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/attendance/timesheets?employee_id=1&week=2024-03-04",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "attendance", "timesheets"],
+                  "query": [
+                    {
+                      "key": "employee_id",
+                      "value": "1"
+                    },
+                    {
+                      "key": "week",
+                      "value": "2024-03-04"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Timesheet Entry",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": 1,\n  \"date\": \"2024-03-05\",\n  \"check_in\": \"08:30:00\",\n  \"check_out\": \"17:30:00\",\n  \"work_hours\": 8.5,\n  \"overtime_hours\": 0.5,\n  \"notes\": \"Extra meeting with client\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/attendance/timesheets",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "attendance", "timesheets"]
+                }
+              }
+            },
+            {
+              "name": "Generate Timesheet Summary",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": 1,\n  \"date_from\": \"2024-03-01\",\n  \"date_to\": \"2024-03-31\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/attendance/timesheets/summary",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "attendance", "timesheets", "summary"]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🏥 Insurance Management",
+      "description": "Complete insurance module with claims, policies, and premiums",
+      "item": [
+        {
+          "name": "Insurance Providers",
+          "item": [
+            {
+              "name": "List Providers",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/providers",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "providers"]
+                }
+              }
+            },
+            {
+              "name": "Create Provider",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"MutuelSanté\",\n  \"code\": \"MS-001\",\n  \"contact_person\": \"Abdou Sane\",\n  \"email\": \"contact@mutuelsante.sn\",\n  \"phone\": \"+221 33 889 98 98\",\n  \"address\": \"Avenue Bourguiba, Dakar\",\n  \"is_active\": true\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/providers",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "providers"]
+                }
+              }
+            },
+            {
+              "name": "Activate Provider",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/providers/1/activate",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "providers", "1", "activate"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Insurance Policies",
+          "item": [
+            {
+              "name": "List Policies",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/policies",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "policies"]
+                }
+              }
+            },
+            {
+              "name": "Create Policy",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider_id\": 1,\n  \"name\": \"Premium Health Coverage\",\n  \"code\": \"PHC-001\",\n  \"coverage_amount\": 100000,\n  \"base_premium\": 50,\n  \"dependent_premium\": 15,\n  \"description\": \"Comprehensive health coverage for employees and dependents\",\n  \"is_active\": true\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/policies",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "policies"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Insurance Enrollments",
+          "item": [
+            {
+              "name": "List Enrollments",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/enrollments?status=active",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "enrollments"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "active"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Enroll Employee",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": 1,\n  \"policy_id\": 1,\n  \"enrollment_date\": \"2024-03-01\",\n  \"premium_amount\": 50,\n  \"status\": \"active\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/enrollments",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "enrollments"]
+                }
+              }
+            },
+            {
+              "name": "Add Dependent",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Aisha Doe\",\n  \"relationship\": \"spouse\",\n  \"date_of_birth\": \"1992-08-20\",\n  \"email\": \"aisha@example.com\",\n  \"phone\": \"+221 123 456 799\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/enrollments/1/add-dependent",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "enrollments", "1", "add-dependent"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Insurance Claims",
+          "item": [
+            {
+              "name": "List Claims",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/claims?status=pending",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "claims"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "pending"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Claim",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"enrollment_id\": 1,\n  \"claim_date\": \"2024-03-05\",\n  \"claim_type\": \"medical\",\n  \"description\": \"Hospital treatment for surgery\",\n  \"amount_claimed\": 2500,\n  \"status\": \"pending\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/claims",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "claims"]
+                }
+              }
+            },
+            {
+              "name": "Upload Claim Document",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "document",
+                      "type": "file",
+                      "src": ""
+                    },
+                    {
+                      "key": "document_type",
+                      "value": "receipt",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/claims/1/upload-document",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "claims", "1", "upload-document"]
+                }
+              }
+            },
+            {
+              "name": "Process OCR (AI)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/claims/1/process-ocr",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "claims", "1", "process-ocr"]
+                }
+              }
+            },
+            {
+              "name": "Approve Claim",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"approved_amount\": 2500,\n  \"notes\": \"Approved - All documents verified\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/claims/1/approve",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "claims", "1", "approve"]
+                }
+              }
+            },
+            {
+              "name": "Detect Anomalies (AI)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/claims/1/detect-anomalies",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "claims", "1", "detect-anomalies"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Insurance Bordereaux (Bulletins)",
+          "item": [
+            {
+              "name": "List Bordereaux",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/bordereaux",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "bordereaux"]
+                }
+              }
+            },
+            {
+              "name": "Create Bordereau",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider_id\": 1,\n  \"reference_number\": \"BRD-2024-03-001\",\n  \"billing_period_start\": \"2024-03-01\",\n  \"billing_period_end\": \"2024-03-31\",\n  \"notes\": \"March 2024 claims submission\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/bordereaux",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "bordereaux"]
+                }
+              }
+            },
+            {
+              "name": "Add Claims to Bordereau",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"claim_ids\": [1, 2, 3, 4]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/bordereaux/1/add-claims",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "bordereaux", "1", "add-claims"]
+                }
+              }
+            },
+            {
+              "name": "Submit Bordereau",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/bordereaux/1/submit",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "bordereaux", "1", "submit"]
+                }
+              }
+            },
+            {
+              "name": "Download Bordereau PDF",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/bordereaux/1/download-pdf",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "bordereaux", "1", "download-pdf"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Insurance Premiums",
+          "item": [
+            {
+              "name": "List Premiums",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/premiums",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "premiums"]
+                }
+              }
+            },
+            {
+              "name": "Calculate Premium",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/premiums/1/calculate",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "premiums", "1", "calculate"]
+                }
+              }
+            },
+            {
+              "name": "Record Premium Payment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"enrollment_id\": 1,\n  \"amount\": 50,\n  \"payment_date\": \"2024-03-05\",\n  \"payment_method\": \"bank_transfer\",\n  \"reference_number\": \"TRF-123456\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/premiums/record-payment",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "premiums", "record-payment"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Insurance Statistics",
+          "item": [
+            {
+              "name": "Get Overview",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/statistics/overview",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "statistics", "overview"]
+                }
+              }
+            },
+            {
+              "name": "Get Claims Trends",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/statistics/claims-trends?months=12",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "statistics", "claims-trends"],
+                  "query": [
+                    {
+                      "key": "months",
+                      "value": "12"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Top Providers",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/statistics/top-providers?limit=10",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "statistics", "top-providers"],
+                  "query": [
+                    {
+                      "key": "limit",
+                      "value": "10"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Employee Stats",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/statistics/employee/1",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "statistics", "employee", "1"]
+                }
+              }
+            },
+            {
+              "name": "Get Compliance Report",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/insurance/statistics/compliance-report",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "insurance", "statistics", "compliance-report"]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "📊 Performance & Recruitment",
+      "description": "Appraisals, goals, and recruitment management",
+      "item": [
+        {
+          "name": "Appraisals",
+          "item": [
+            {
+              "name": "List Appraisals",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/performance/appraisals",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "performance", "appraisals"]
+                }
+              }
+            },
+            {
+              "name": "Create Appraisal",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"employee_id\": 1,\n  \"period_start\": \"2024-01-01\",\n  \"period_end\": \"2024-03-31\",\n  \"manager_id\": 2,\n  \"overall_rating\": 4.5,\n  \"comments\": \"Excellent performance and commitment\",\n  \"goals_achieved\": \"All targets met\",\n  \"areas_for_improvement\": \"Communication skills\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/performance/appraisals",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "performance", "appraisals"]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Jobs & Recruitment",
+          "item": [
+            {
+              "name": "List Jobs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/recruitment/jobs?status=open",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "recruitment", "jobs"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "open"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Job Posting",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Senior Developer\",\n  \"department_id\": 1,\n  \"designation_id\": 5,\n  \"location\": \"Dakar\",\n  \"job_category_id\": 1,\n  \"description\": \"We are looking for an experienced senior developer\",\n  \"requirements\": \"5+ years experience, Laravel\",\n  \"salary_range_min\": 1500,\n  \"salary_range_max\": 2500,\n  \"posted_date\": \"2024-03-01\",\n  \"closing_date\": \"2024-03-31\",\n  \"status\": \"open\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/recruitment/jobs",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "recruitment", "jobs"]
+                }
+              }
+            },
+            {
+              "name": "List Job Applications",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/recruitment/job-applications?status=applied",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "recruitment", "job-applications"],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "applied"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Submit Job Application",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"job_id\": 1,\n  \"applicant_name\": \"Mohamed Diallo\",\n  \"applicant_email\": \"mohamed@example.com\",\n  \"applicant_phone\": \"+221 123 456 789\",\n  \"cv_url\": \"/storage/cv/cv-123.pdf\",\n  \"cover_letter\": \"I am interested in this position\",\n  \"status\": \"applied\",\n  \"applied_date\": \"2024-03-05\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/recruitment/job-applications",
+                  "protocol": "http",
+                  "host": ["{{base_url}}"],
+                  "path": ["api", "recruitment", "job-applications"]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🌐 Web & Dashboard",
+      "description": "Public website and dashboard endpoints",
+      "item": [
+        {
+          "name": "Get Homepage",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/web/homepage",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "web", "homepage"]
+            }
+          }
+        },
+        {
+          "name": "Get System Info",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/web/system-info",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "web", "system-info"]
+            }
+          }
+        },
+        {
+          "name": "Get Quick Actions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/web/quick-actions",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "web", "quick-actions"]
+            }
+          }
+        },
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/web/notifications",
+              "protocol": "http",
+              "host": ["{{base_url}}"],
+              "path": ["api", "web", "notifications"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
