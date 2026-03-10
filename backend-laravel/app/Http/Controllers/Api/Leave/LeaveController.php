@@ -3,14 +3,16 @@
 namespace App\Http\Controllers\Api\Leave;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\Leave;
+use App\Http\Controllers\Api\CrudTrait;
+use App\Http\Controllers\Api\CallsDjangoAI;
+use App\Models\Leave\Leave;
 use Illuminate\Http\Request;
 
 class LeaveController extends ApiController
 {
-    use CrudTrait;
+    use CrudTrait, CallsDjangoAI;
 
-    protected $modelClass = \App\Models\Leave::class;
+    protected $modelClass = Leave::class;
     protected $validationRules = [];
 
     public function index(Request $request)
@@ -30,7 +32,7 @@ class LeaveController extends ApiController
 
     public function update(Request $request, $id)
     {
-        return $this->crudUpdate($request,$id);
+        return $this->crudUpdate($request, $id);
     }
 
     public function destroy($id)
@@ -40,20 +42,9 @@ class LeaveController extends ApiController
 
     public function getOptimalDates(Request $request)
     {
-        try {
-            // Call the Django AI Backend
-            $response = \Illuminate\Support\Facades\Http::post(env('DJANGO_AI_URL', 'http://localhost:8000') . '/api/ai/leave/optimal-dates/', [
-                'employee_id' => auth()->id() ?? 1,
-            ]);
-
-            if ($response->successful()) {
-                return $this->successResponse($response->json());
-            }
-
-            return response()->json(['error' => 'Failed to connect to AI Service'], 502);
-            
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
+        $response = $this->djangoPost('/api/ai/leave/optimal-dates/', [
+            'employee_id' => auth()->id() ?? 1,
+        ]);
+        return $this->forwardDjangoResponse($response);
     }
 }

@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Api\Insurance;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Controllers\Api\CrudTrait;
+use App\Http\Controllers\Api\CallsDjangoAI;
 use App\Models\Insurance\InsuranceClaim;
 use Illuminate\Http\Request;
 
 class InsuranceClaimController extends ApiController
 {
-    use CrudTrait;
+    use CrudTrait, CallsDjangoAI;
 
     public function index(Request $request)
     {
@@ -60,45 +61,20 @@ class InsuranceClaimController extends ApiController
     public function processOCR(Request $request, $id)
     {
         $claim = InsuranceClaim::findOrFail($id);
-        
-        try {
-            // Assume document is passed or fetched
-            // Call the Django AI Backend
-            $response = \Illuminate\Support\Facades\Http::post(env('DJANGO_AI_URL', 'http://localhost:8000') . '/api/ai/ocr/process/', [
-                'claim_id' => $claim->id,
-            ]);
-
-            if ($response->successful()) {
-                return $this->successResponse($response->json());
-            }
-
-            return response()->json(['error' => 'Failed to connect to AI Service'], 502);
-            
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
+        $response = $this->djangoPost('/api/ai/ocr/process/', [
+            'claim_id' => $claim->id,
+        ]);
+        return $this->forwardDjangoResponse($response);
     }
 
     public function detectAnomalies($id)
     {
         $claim = InsuranceClaim::findOrFail($id);
-        
-        try {
-            // Call the Django AI Backend
-            $response = \Illuminate\Support\Facades\Http::post(env('DJANGO_AI_URL', 'http://localhost:8000') . '/api/ai/fraud/detect/', [
-                'claim_id' => $claim->id,
-                'amount' => $claim->total_amount,
-                'employee_id' => $claim->enrollment->employee_id ?? 1
-            ]);
-
-            if ($response->successful()) {
-                return $this->successResponse($response->json());
-            }
-
-            return response()->json(['error' => 'Failed to connect to AI Service'], 502);
-            
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
+        $response = $this->djangoPost('/api/ai/fraud/detect/', [
+            'claim_id' => $claim->id,
+            'amount' => $claim->total_amount,
+            'employee_id' => $claim->enrollment->employee_id ?? 1
+        ]);
+        return $this->forwardDjangoResponse($response);
     }
 }

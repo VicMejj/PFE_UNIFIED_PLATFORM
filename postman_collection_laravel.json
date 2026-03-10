@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Laravel Backend API",
-    "description": "API collection for the Laravel 8000 Core System",
+    "name": "Laravel Unified Platform API",
+    "description": "Full API collection generated from routes/api.php. Base URL: http://localhost:8000/api/v1. Set the 'token' variable after logging in.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -12,99 +12,911 @@
     },
     {
       "key": "token",
-      "value": "YOUR_BEARER_TOKEN_HERE",
+      "value": "",
       "type": "string"
     }
   ],
   "item": [
     {
-      "name": "Auth",
+      "name": "🔐 Auth",
       "item": [
         {
-          "name": "Login",
+          "name": "Register",
           "request": {
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password\"\n}",
-              "options": {"raw": {"language": "json"}}
+              "raw": "{\"name\":\"Admin\",\"email\":\"admin@example.com\",\"password\":\"password\",\"password_confirmation\":\"password\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {"raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"]}
-          }
-        }
-      ]
-    },
-    {
-      "name": "Employees",
-      "item": [
-        {
-          "name": "Get Employees",
-          "request": {
-            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
-            "method": "GET",
-            "header": [{"key": "Accept", "value": "application/json"}],
-            "url": {"raw": "{{base_url}}/employees", "host": ["{{base_url}}"], "path": ["employees"]}
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
           }
         },
         {
-          "name": "Turnover Prediction (AI Gateway)",
+          "name": "Login → Save Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var data = pm.response.json();",
+                  "if(data.data && data.data.token) { pm.collectionVariables.set('token', data.data.token); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
-            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
-            "method": "GET",
-            "header": [{"key": "Accept", "value": "application/json"}],
-            "url": {"raw": "{{base_url}}/employees/1/turnover-prediction", "host": ["{{base_url}}"], "path": ["employees", "1", "turnover-prediction"]}
-          }
-        }
-      ]
-    },
-    {
-      "name": "Leave Management",
-      "item": [
-        {
-          "name": "Get Optimal Dates (AI Gateway)",
-          "request": {
-            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
-            "method": "GET",
-            "header": [{"key": "Accept", "value": "application/json"}],
-            "url": {"raw": "{{base_url}}/leaves/optimal-dates", "host": ["{{base_url}}"], "path": ["leaves", "optimal-dates"]}
-          }
-        }
-      ]
-    },
-    {
-      "name": "Payroll & Loans",
-      "item": [
-        {
-          "name": "Assess Loan Risk (AI Gateway)",
-          "request": {
-            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
             "method": "POST",
-            "header": [{"key": "Accept", "value": "application/json"}],
-            "url": {"raw": "{{base_url}}/payroll/loans/1/assess-risk", "host": ["{{base_url}}"], "path": ["payroll", "loans", "1", "assess-risk"]}
-          }
-        }
-      ]
-    },
-    {
-      "name": "Insurance Claims",
-      "item": [
-        {
-          "name": "Process Claim OCR (AI Gateway)",
-          "request": {
-            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
-            "method": "POST",
-            "header": [{"key": "Accept", "value": "application/json"}],
-            "url": {"raw": "{{base_url}}/insurance/claims/1/process-ocr", "host": ["{{base_url}}"], "path": ["insurance", "claims", "1", "process-ocr"]}
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"admin@example.com\",\"password\":\"password\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
           }
         },
         {
-          "name": "Detect Fraud Anomalies (AI Gateway)",
+          "name": "Me (Current User)",
           "request": {
-            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/core/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "core",
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "POST",
-            "header": [{"key": "Accept", "value": "application/json"}],
-            "url": {"raw": "{{base_url}}/insurance/claims/1/detect-anomalies", "host": ["{{base_url}}"], "path": ["insurance", "claims", "1", "detect-anomalies"]}
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/core/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "core",
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 Employees",
+      "item": [
+        {
+          "name": "List Employees",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/employees?search=&branch_id=&department_id=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "employees"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "branch_id",
+                  "value": ""
+                },
+                {
+                  "key": "department_id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Employee",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"John Doe\",\"email\":\"john@example.com\",\"branch_id\":1,\"department_id\":1,\"designation_id\":1}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/employees",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "employees"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Employee",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/employees/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "employees",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "🤖 Turnover Prediction (AI)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/employees/1/turnover-prediction",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "employees",
+                "1",
+                "turnover-prediction"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏖️ Leave Management",
+      "item": [
+        {
+          "name": "List Leaves",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/leaves",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "leaves"
+              ]
+            }
+          }
+        },
+        {
+          "name": "🤖 Optimal Leave Dates (AI)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/leaves/optimal-dates",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "leaves",
+                "optimal-dates"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "💰 Payroll & Loans",
+      "item": [
+        {
+          "name": "List Loans",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payroll/loans",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payroll",
+                "loans"
+              ]
+            }
+          }
+        },
+        {
+          "name": "🤖 Assess Loan Risk (AI)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payroll/loans/1/assess-risk",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payroll",
+                "loans",
+                "1",
+                "assess-risk"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Pay Slips",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/payroll/pay-slips",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "payroll",
+                "pay-slips"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏥 Insurance",
+      "item": [
+        {
+          "name": "List Claims",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/insurance/claims?status=pending",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "insurance",
+                "claims"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Claim",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"enrollment_id\":1,\"claim_number\":\"CLM-2024-001\",\"total_amount\":5000,\"date_filed\":\"2024-01-15\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/insurance/claims",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "insurance",
+                "claims"
+              ]
+            }
+          }
+        },
+        {
+          "name": "🤖 Process OCR on Claim (AI)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/insurance/claims/1/process-ocr",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "insurance",
+                "claims",
+                "1",
+                "process-ocr"
+              ]
+            }
+          }
+        },
+        {
+          "name": "🤖 Detect Fraud Anomalies (AI)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/insurance/claims/1/detect-anomalies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "insurance",
+                "claims",
+                "1",
+                "detect-anomalies"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Approve Claim",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/insurance/claims/1/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "insurance",
+                "claims",
+                "1",
+                "approve"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Providers",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/insurance/providers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "insurance",
+                "providers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Insurance Statistics Overview",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/insurance/statistics/overview",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "insurance",
+                "statistics",
+                "overview"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏢 Organization",
+      "item": [
+        {
+          "name": "List Branches",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/organization/branches",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "organization",
+                "branches"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Departments",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/organization/departments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "organization",
+                "departments"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📅 Attendance",
+      "item": [
+        {
+          "name": "List Attendance Records",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/attendance/records",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "attendance",
+                "records"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎯 Performance",
+      "item": [
+        {
+          "name": "List Appraisals",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/performance/appraisals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "performance",
+                "appraisals"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📢 Communication",
+      "item": [
+        {
+          "name": "List Announcements",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/communication/announcements",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "communication",
+                "announcements"
+              ]
+            }
           }
         }
       ]

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Controllers\Api\CrudTrait;
+use App\Http\Controllers\Api\CallsDjangoAI;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -12,7 +13,7 @@ use App\Http\Resources\EmployeeResource;
 
 class EmployeeController extends ApiController
 {
-    use CrudTrait;
+    use CrudTrait, CallsDjangoAI;
     public function __construct()
     {
         // apply permission middleware (spatie/permission)
@@ -154,26 +155,14 @@ class EmployeeController extends ApiController
     public function getTurnoverPrediction($id)
     {
         $employee = Employee::findOrFail($id);
-        
-        try {
-            // Call the Django AI Backend
-            $response = \Illuminate\Support\Facades\Http::post(env('DJANGO_AI_URL', 'http://localhost:8000') . '/api/ai/turnover/predict/', [
-                'employee_id' => $employee->id,
-                'tenure_years' => $employee->tenure_years,
-                'salary' => $employee->salary ?? 60000,
-                'complaints_count' => 0,
-                'performance_score' => 4.0,
-                'leaves_taken' => $employee->leaves()->count()
-            ]);
-
-            if ($response->successful()) {
-                return $this->successResponse($response->json());
-            }
-
-            return response()->json(['error' => 'Failed to connect to AI Service'], 502);
-            
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
+        $response = $this->djangoPost('/api/ai/turnover/predict/', [
+            'employee_id' => $employee->id,
+            'tenure_years' => $employee->tenure_years,
+            'salary' => $employee->salary ?? 60000,
+            'complaints_count' => 0,
+            'performance_score' => 4.0,
+            'leaves_taken' => $employee->leaves()->count()
+        ]);
+        return $this->forwardDjangoResponse($response);
     }
 }

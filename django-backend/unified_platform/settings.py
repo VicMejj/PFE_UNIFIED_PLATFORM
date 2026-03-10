@@ -152,12 +152,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ============================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'api.authentication.LaravelJWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'api.permissions.IsAuthenticated',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
 }
+
+# Shared JWT secret with Laravel backend
+JWT_SECRET = env('JWT_SECRET', default='your-laravel-jwt-secret-key')
 
 # ============================
 # CORS CONFIGURATION
