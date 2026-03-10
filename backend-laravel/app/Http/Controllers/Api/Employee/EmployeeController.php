@@ -154,7 +154,26 @@ class EmployeeController extends ApiController
     public function getTurnoverPrediction($id)
     {
         $employee = Employee::findOrFail($id);
-        $prediction = $employee->getTurnoverPrediction();
-        return $this->successResponse(['prediction' => $prediction]);
+        
+        try {
+            // Call the Django AI Backend
+            $response = \Illuminate\Support\Facades\Http::post(env('DJANGO_AI_URL', 'http://localhost:8000') . '/api/ai/turnover/predict/', [
+                'employee_id' => $employee->id,
+                'tenure_years' => $employee->tenure_years,
+                'salary' => $employee->salary ?? 60000,
+                'complaints_count' => 0,
+                'performance_score' => 4.0,
+                'leaves_taken' => $employee->leaves()->count()
+            ]);
+
+            if ($response->successful()) {
+                return $this->successResponse($response->json());
+            }
+
+            return response()->json(['error' => 'Failed to connect to AI Service'], 502);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 }

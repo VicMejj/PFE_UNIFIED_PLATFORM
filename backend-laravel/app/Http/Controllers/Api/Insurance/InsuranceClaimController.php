@@ -56,4 +56,49 @@ class InsuranceClaimController extends ApiController
         $claim->delete();
         return response()->json(null, 204);
     }
+
+    public function processOCR(Request $request, $id)
+    {
+        $claim = InsuranceClaim::findOrFail($id);
+        
+        try {
+            // Assume document is passed or fetched
+            // Call the Django AI Backend
+            $response = \Illuminate\Support\Facades\Http::post(env('DJANGO_AI_URL', 'http://localhost:8000') . '/api/ai/ocr/process/', [
+                'claim_id' => $claim->id,
+            ]);
+
+            if ($response->successful()) {
+                return $this->successResponse($response->json());
+            }
+
+            return response()->json(['error' => 'Failed to connect to AI Service'], 502);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function detectAnomalies($id)
+    {
+        $claim = InsuranceClaim::findOrFail($id);
+        
+        try {
+            // Call the Django AI Backend
+            $response = \Illuminate\Support\Facades\Http::post(env('DJANGO_AI_URL', 'http://localhost:8000') . '/api/ai/fraud/detect/', [
+                'claim_id' => $claim->id,
+                'amount' => $claim->total_amount,
+                'employee_id' => $claim->enrollment->employee_id ?? 1
+            ]);
+
+            if ($response->successful()) {
+                return $this->successResponse($response->json());
+            }
+
+            return response()->json(['error' => 'Failed to connect to AI Service'], 502);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }

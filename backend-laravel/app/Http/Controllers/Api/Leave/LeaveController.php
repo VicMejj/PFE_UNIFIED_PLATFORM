@@ -37,4 +37,23 @@ class LeaveController extends ApiController
     {
         return $this->crudDestroy($id);
     }
+
+    public function getOptimalDates(Request $request)
+    {
+        try {
+            // Call the Django AI Backend
+            $response = \Illuminate\Support\Facades\Http::post(env('DJANGO_AI_URL', 'http://localhost:8000') . '/api/ai/leave/optimal-dates/', [
+                'employee_id' => auth()->id() ?? 1,
+            ]);
+
+            if ($response->successful()) {
+                return $this->successResponse($response->json());
+            }
+
+            return response()->json(['error' => 'Failed to connect to AI Service'], 502);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }

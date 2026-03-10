@@ -1,0 +1,114 @@
+{
+  "info": {
+    "name": "Django ML AI Microservice",
+    "description": "API collection for the Django 8001 ML Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Predict Turnover",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"employee_id\": 42,\n  \"tenure_years\": 3,\n  \"salary\": 65000,\n  \"complaints_count\": 1,\n  \"performance_score\": 3.8,\n  \"leaves_taken\": 15\n}",
+          "options": {"raw": {"language": "json"}}
+        },
+        "url": {
+          "raw": "http://localhost:8001/api/ai/turnover/predict/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8001",
+          "path": ["api", "ai", "turnover", "predict", ""]
+        }
+      }
+    },
+    {
+      "name": "Optimal Leave Dates",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"employee_id\": 42\n}",
+          "options": {"raw": {"language": "json"}}
+        },
+        "url": {
+          "raw": "http://localhost:8001/api/ai/leave/optimal-dates/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8001",
+          "path": ["api", "ai", "leave", "optimal-dates", ""]
+        }
+      }
+    },
+    {
+      "name": "Assess Loan Risk",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"loan_id\": 105,\n  \"employee_id\": 42,\n  \"amount\": 5000,\n  \"duration\": 12\n}",
+          "options": {"raw": {"language": "json"}}
+        },
+        "url": {
+          "raw": "http://localhost:8001/api/ai/loan/assess-risk/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8001",
+          "path": ["api", "ai", "loan", "assess-risk", ""]
+        }
+      }
+    },
+    {
+      "name": "Process Insurance OCR",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"claim_id\": 1024\n}",
+          "options": {"raw": {"language": "json"}}
+        },
+        "url": {
+          "raw": "http://localhost:8001/api/ai/ocr/process/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8001",
+          "path": ["api", "ai", "ocr", "process", ""]
+        }
+      }
+    },
+    {
+      "name": "Detect Fraud Anomaly",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"claim_id\": 1024,\n  \"amount\": 15000,\n  \"employee_id\": 42\n}",
+          "options": {"raw": {"language": "json"}}
+        },
+        "url": {
+          "raw": "http://localhost:8001/api/ai/fraud/detect/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8001",
+          "path": ["api", "ai", "fraud", "detect", ""]
+        }
+      }
+    }
+  ]
+}

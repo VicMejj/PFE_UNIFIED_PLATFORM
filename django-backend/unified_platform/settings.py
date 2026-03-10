@@ -12,13 +12,14 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+import environ
+
+# Initialize environment variables
+env = environ.Env()
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 
 # Quick-start development settings - unsuitable for production
@@ -48,11 +49,13 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_filters',
     
-    # Local apps
-    'gestion_rh',
-    'gestion_sociale',
-    'assurance',
-    'ia_models',
+    # Core system
+    'core',
+    
+    # Functional apps
+    'ai_services',
+    'insurance',
+    'analytics',
     'api',
 ]
 
@@ -92,8 +95,12 @@ WSGI_APPLICATION = 'unified_platform.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('DB_DATABASE', default='unified_platform'),
+        'USER': env('DB_USERNAME', default='postgres'),
+        'PASSWORD': env('DB_PASSWORD', default='postgres'),
+        'HOST': env('DB_HOST', default='127.0.0.1'),
+        'PORT': env('DB_PORT', default='5432'),
     }
 }
 

@@ -1,0 +1,113 @@
+{
+  "info": {
+    "name": "Laravel Backend API",
+    "description": "API collection for the Laravel 8000 Core System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "YOUR_BEARER_TOKEN_HERE",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {"raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Employees",
+      "item": [
+        {
+          "name": "Get Employees",
+          "request": {
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
+            "method": "GET",
+            "header": [{"key": "Accept", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/employees", "host": ["{{base_url}}"], "path": ["employees"]}
+          }
+        },
+        {
+          "name": "Turnover Prediction (AI Gateway)",
+          "request": {
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
+            "method": "GET",
+            "header": [{"key": "Accept", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/employees/1/turnover-prediction", "host": ["{{base_url}}"], "path": ["employees", "1", "turnover-prediction"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Leave Management",
+      "item": [
+        {
+          "name": "Get Optimal Dates (AI Gateway)",
+          "request": {
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
+            "method": "GET",
+            "header": [{"key": "Accept", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/leaves/optimal-dates", "host": ["{{base_url}}"], "path": ["leaves", "optimal-dates"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payroll & Loans",
+      "item": [
+        {
+          "name": "Assess Loan Risk (AI Gateway)",
+          "request": {
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
+            "method": "POST",
+            "header": [{"key": "Accept", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/payroll/loans/1/assess-risk", "host": ["{{base_url}}"], "path": ["payroll", "loans", "1", "assess-risk"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Insurance Claims",
+      "item": [
+        {
+          "name": "Process Claim OCR (AI Gateway)",
+          "request": {
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
+            "method": "POST",
+            "header": [{"key": "Accept", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/insurance/claims/1/process-ocr", "host": ["{{base_url}}"], "path": ["insurance", "claims", "1", "process-ocr"]}
+          }
+        },
+        {
+          "name": "Detect Fraud Anomalies (AI Gateway)",
+          "request": {
+            "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]},
+            "method": "POST",
+            "header": [{"key": "Accept", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/insurance/claims/1/detect-anomalies", "host": ["{{base_url}}"], "path": ["insurance", "claims", "1", "detect-anomalies"]}
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -37,4 +37,28 @@ class LoanController extends ApiController
     {
         return $this->crudDestroy($id);
     }
+
+    public function assessRisk($id)
+    {
+        $loan = Loan::findOrFail($id);
+        
+        try {
+            // Call the Django AI Backend
+            $response = \Illuminate\Support\Facades\Http::post(env('DJANGO_AI_URL', 'http://localhost:8000') . '/api/ai/loan/assess-risk/', [
+                'loan_id' => $loan->id,
+                'employee_id' => $loan->employee_id,
+                'amount' => $loan->amount,
+                'duration' => $loan->duration_months ?? 12
+            ]);
+
+            if ($response->successful()) {
+                return $this->successResponse($response->json());
+            }
+
+            return response()->json(['error' => 'Failed to connect to AI Service'], 502);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }
