@@ -1,12 +1,66 @@
-# Python-generated files
+# ------------------------------
+# Python
+# ------------------------------
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
 build/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
 wheels/
-*.egg-info
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Virtual environments
-.venv
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables (VERY IMPORTANT)
 .env
 .env.*
+*.env
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Node (if you use frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing / coverage
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.pytest_cache/
+
+# Static build files
+staticfiles/

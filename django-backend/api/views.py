@@ -64,13 +64,51 @@ def assess_loan_risk(request):
 @authentication_classes([LaravelJWTAuthentication])
 @permission_classes([IsAuthenticated])
 def chatbot_send_message(request):
-    """Requires: Any authenticated user"""
+    """
+    Handles chatbot messages, persists them to the database, and calls the AI engine.
+    Now supports session-based memory.
+    """
     try:
+        from ai_services.models import ChatbotConversation, ChatbotMessage
+        
         text = request.data.get('message', '')
-        context = request.data.get('context', {})
+        session_id = request.data.get('session_id', 'default_session')
+        user_id = request.user.get('sub') # From Laravel JWT
+        
+        # 1. Get or create conversation session
+        conversation, created = ChatbotConversation.objects.get_or_create(
+            session_uuid=session_id,
+            defaults={'user_id': user_id or 0}
+        )
+        
+        # 2. Persist User Message
+        user_msg = ChatbotMessage.objects.create(
+            conversation=conversation,
+            sender='USER',
+            text=text
+        )
+        
+        # 3. Call AI Engine with session info
         engine = ChatbotEngine()
-        result = engine.process_message(text, context)
-        return Response({'success': True, 'data': result, 'user_id': request.user.get('sub')}, status=status.HTTP_200_OK)
+        result = engine.process_message(text, session_id=session_id)
+        
+        # 4. Extract intent/entities and persist Bot Response
+        user_msg.intent = result.get('intent')
+        user_msg.entities = result.get('entities', {})
+        user_msg.save()
+        
+        ChatbotMessage.objects.create(
+            conversation=conversation,
+            sender='BOT',
+            text=result.get('response')
+        )
+        
+        return Response({
+            'success': True, 
+            'data': result, 
+            'user_id': user_id,
+            'session_id': session_id
+        }, status=status.HTTP_200_OK)
     except Exception as e:
         logger.error(f"Chatbot error: {e}")
         return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

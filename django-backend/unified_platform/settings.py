@@ -163,7 +163,10 @@ REST_FRAMEWORK = {
 }
 
 # Shared JWT secret with Laravel backend
-JWT_SECRET = env('JWT_SECRET', default='your-laravel-jwt-secret-key')
+JWT_SECRET = env('JWT_SECRET', default='CPhlOZSZZskOmBGDUa6jPhSaqp1ULn4lfbbkUZROLy2ICUTkoGhzUzV112q2U0Rx')
+
+# AI Tools Configuration
+HF_API_KEY = env('HUGGINGFACE_API_KEY', default='')
 
 # ============================
 # CORS CONFIGURATION

@@ -48,6 +48,7 @@ class AnomalyDetection(BaseModel):
 class ChatbotConversation(BaseModel):
     user_id = models.IntegerField(help_text="References Laravel user ID")
     session_uuid = models.CharField(max_length=255)
+    memory = models.JSONField(default=dict, help_text="Stored context like user name, role, etc.")
     started_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

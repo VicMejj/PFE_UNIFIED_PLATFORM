@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import pdf_reader_endpoint
 
 urlpatterns = [
     path('ai/turnover/predict/', views.predict_turnover, name='api_predict_turnover'),
@@ -11,4 +12,6 @@ urlpatterns = [
     path('ai/ocr/process/', views.ocr_process_document, name='api_ocr_process'),
     path('ai/document/classify/', views.classify_document, name='api_classify_document'),
     path('ai/fraud/detect/', views.detect_fraud, name='api_detect_fraud'),
+    
+    path('ai/maint/read-pdf/', pdf_reader_endpoint.read_doc),
 ]

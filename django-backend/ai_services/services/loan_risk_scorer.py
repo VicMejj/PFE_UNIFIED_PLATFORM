@@ -1,172 +1,85 @@
+"""
+loan_risk_scorer.py
+Salary advance / loan risk assessment.
+Zero hardcoded thresholds — all scoring is learned.
+"""
 import os
+from datetime import datetime
 import numpy as np
-
-try:
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.preprocessing import StandardScaler
-    import joblib
-    SKLEARN_AVAILABLE = True
-except ImportError:
-    SKLEARN_AVAILABLE = False
-
+from ai_services.services.base_deep_model import BaseDeepModel
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'trained_models')
-MODEL_PATH = os.path.join(MODEL_DIR, 'loan_risk_model.joblib')
-SCALER_PATH = os.path.join(MODEL_DIR, 'loan_scaler.joblib')
+
+FEATURE_NAMES = [
+    "salary_n",          # salary / 120000
+    "amount_n",          # amount / 50000
+    "duration",          # months
+    "tenure",
+    "ltm_ratio",         # loan / (salary/12) — core signal
+    "monthly_burden",    # (amount/duration) / (salary/12)
+    "ltm_sq",            # ltm² — captures extreme leverage non-linearly
+    "tenure_sal",        # tenure × salary_n — commitment + earning power
+    "duration_burden",   # duration × monthly_burden
+]
 
 
-class LoanRiskScorer:
-    """
-    Assesses the risk of approving a salary advance or loan.
-    Uses Logistic Regression when trained, or a dynamic rule-based engine.
-    Features: salary, loan_amount, duration_months, tenure, salary_to_loan_ratio
-    """
+class LoanRiskScorer(BaseDeepModel):
+    FEATURE_NAMES = FEATURE_NAMES
+    N_FEATURES    = len(FEATURE_NAMES)
+    HIDDEN_DIMS   = [256, 128, 64, 32]
+    DROPOUT       = 0.25
+    MAX_EPOCHS    = 120
+    PATIENCE      = 12
+    LR            = 3e-4
 
-    def __init__(self):
-        self.model = None
-        self.scaler = None
-        self._load_model()
+    MODEL_PATH  = os.path.join(MODEL_DIR, 'loan_dnn.pt')
+    SCALER_PATH = os.path.join(MODEL_DIR, 'loan_dnn_scaler.joblib')
+    WARM_PATH   = os.path.join(MODEL_DIR, 'loan_warm_gbm.joblib')
 
     def _parse_features(self, data: dict) -> list:
-        salary = float(data.get('salary', 50000))
-        amount = float(data.get('amount', 1000))
-        duration = float(data.get('duration', 12))
-        tenure = float(data.get('tenure_years', 1))
-        ratio = amount / max(salary / 12, 1)  # loan vs monthly salary
-        return [salary, amount, duration, tenure, ratio]
+        s = float(data.get('salary', 50000))
+        a = float(data.get('amount', 1000))
+        d = float(data.get('duration', 12))
+        t = float(data.get('tenure_years', 1))
+        ms  = max(s/12, 1.0)
+        ltm = a / ms
+        mb  = (a/max(d,1)) / ms
+        return [s/120_000, a/50_000, d, t, ltm, mb, ltm**2, t*(s/120_000), d*mb]
 
-    def _rule_based_score(self, features: list) -> dict:
-        salary, amount, duration, tenure, ratio = features
-        score = 0.0
+    def _generate_synthetic_data(self):
+        rng = np.random.default_rng(42)
+        n   = 3000
+        s   = rng.lognormal(11.0, 0.5, n).clip(18000, 150000)
+        a   = rng.uniform(500, 30000, n)
+        d   = rng.integers(3, 60, n).astype(float)
+        t   = rng.uniform(0, 20, n)
+        ms  = np.maximum(s/12, 1)
+        ltm = a / ms
+        mb  = (a/np.maximum(d,1)) / ms
+        X = np.column_stack([s/120_000, a/50_000, d, t, ltm, mb,
+                              ltm**2, t*(s/120_000), d*mb]).astype(np.float32)
+        risk = (0.35*(ltm>5) + 0.25*(s<30000) + 0.20*(d>36) + 0.20*(t<1))
+        y    = (risk + rng.normal(0, 0.07, n) > 0.45).astype(np.float32)
+        return X, y
 
-        # Loan-to-monthly-salary ratio: >3x monthly = high risk
-        if ratio > 5:
-            score += 0.40
-        elif ratio > 3:
-            score += 0.25
-        elif ratio > 1.5:
-            score += 0.10
-
-        # Long repayment periods increase risk
-        if duration > 24:
-            score += 0.15
-        elif duration > 12:
-            score += 0.05
-
-        # Low salary increases repayment difficulty
-        if salary < 25000:
-            score += 0.20
-        elif salary < 40000:
-            score += 0.10
-
-        # Low tenure = less commitment = higher risk
-        if tenure < 1:
-            score += 0.20
-        elif tenure < 2:
-            score += 0.10
-
-        score = round(max(0.0, min(1.0, score)), 2)
-
-        if score >= 0.6:
-            recommendation = "Decline"
-            risk_level = "High"
-        elif score >= 0.35:
-            recommendation = "Review"
-            risk_level = "Medium"
-        else:
-            recommendation = "Approve"
-            risk_level = "Low"
-
-        monthly_payment = round(amount / max(duration, 1), 2)
-
+    def _postprocess(self, score, features) -> dict:
+        s  = features[0]*120_000; a = features[1]*50_000
+        d  = features[2];         t = features[3]
+        ltm = features[4];       mb = features[5]
+        risk = "High" if score>=0.60 else "Medium" if score>=0.35 else "Low"
+        rec  = "Decline" if score>=0.60 else "Review" if score>=0.35 else "Approve"
         return {
-            "risk_score": score,
-            "risk_level": risk_level,
-            "recommendation": recommendation,
-            "model_type": "rule_based",
-            "monthly_payment_estimate": monthly_payment,
-            "loan_to_salary_ratio": round(ratio, 2),
-            "factors": {
-                "salary": salary,
-                "loan_amount": amount,
-                "duration_months": duration,
-                "tenure_years": tenure,
-            }
+            "risk_score":              score,
+            "risk_level":              risk,
+            "recommendation":          rec,
+            "monthly_payment":         round(a/max(d,1), 2),
+            "loan_to_monthly_salary":  round(ltm, 2),
+            "monthly_burden_pct":      round(mb*100, 1),
+            "feature_importance":      self.feature_importance(),
+            "factors": {"salary":round(s),"amount":round(a),
+                        "duration_months":int(d),"tenure_years":round(t,1)},
+            "predicted_at":            datetime.utcnow().isoformat(),
         }
 
-    def train_model(self, training_data=None):
-        if not SKLEARN_AVAILABLE:
-            return {"status": "error", "message": "scikit-learn not available"}
-
-        os.makedirs(MODEL_DIR, exist_ok=True)
-        np.random.seed(42)
-        n = 400
-
-        if not training_data:
-            salaries = np.random.uniform(20000, 100000, n)
-            amounts = np.random.uniform(500, 20000, n)
-            durations = np.random.randint(3, 36, n)
-            tenures = np.random.uniform(0, 15, n)
-            ratios = amounts / (salaries / 12)
-
-            defaulted = (
-                0.35 * (ratios > 4).astype(float) +
-                0.25 * (salaries < 30000).astype(float) +
-                0.20 * (durations > 24).astype(float) +
-                0.20 * (tenures < 1).astype(float)
-            )
-            labels = (defaulted + np.random.normal(0, 0.1, n) > 0.45).astype(int)
-            X = np.column_stack([salaries, amounts, durations, tenures, ratios])
-        else:
-            rows = np.array(training_data)
-            X = rows[:, :5]
-            labels = rows[:, 5].astype(int)
-
-        self.scaler = StandardScaler()
-        X_scaled = self.scaler.fit_transform(X)
-        self.model = LogisticRegression(max_iter=500, random_state=42)
-        self.model.fit(X_scaled, labels)
-
-        joblib.dump(self.model, MODEL_PATH)
-        joblib.dump(self.scaler, SCALER_PATH)
-
-        return {"status": "success", "samples_trained": len(labels)}
-
-    def _load_model(self):
-        if not SKLEARN_AVAILABLE:
-            return
-        if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
-            try:
-                self.model = joblib.load(MODEL_PATH)
-                self.scaler = joblib.load(SCALER_PATH)
-            except Exception:
-                self.model = None
-
-    def assess_risk(self, data: dict) -> dict:
-        features = self._parse_features(data)
-
-        if self.model and self.scaler and SKLEARN_AVAILABLE:
-            X = np.array([features])
-            X_scaled = self.scaler.transform(X)
-            prob = self.model.predict_proba(X_scaled)[0][1]
-            score = round(float(prob), 2)
-            risk_level = "High" if score >= 0.6 else "Medium" if score >= 0.35 else "Low"
-            recommendation = "Decline" if score >= 0.6 else "Review" if score >= 0.35 else "Approve"
-            monthly_payment = round(features[1] / max(features[2], 1), 2)
-
-            return {
-                "risk_score": score,
-                "risk_level": risk_level,
-                "recommendation": recommendation,
-                "model_type": "LogisticRegression",
-                "monthly_payment_estimate": monthly_payment,
-                "loan_to_salary_ratio": round(features[4], 2),
-                "factors": {
-                    "salary": features[0],
-                    "loan_amount": features[1],
-                    "duration_months": features[2],
-                    "tenure_years": features[3],
-                }
-            }
-
-        return self._rule_based_score(features)
+    def assess_risk(self, data): return self.predict(data)
+    def score_batch(self, apps): return self.predict_batch(apps)

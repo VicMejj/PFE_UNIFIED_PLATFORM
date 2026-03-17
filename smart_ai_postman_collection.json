@@ -1,0 +1,274 @@
+{
+	"info": {
+		"_postman_id": "smart-ai-unified-platform",
+		"name": "Smart AI Unified Platform - Django API",
+		"description": "Comprehensive collection for testing advanced AI/ML services: Mejj (Chatbot), Turnover Prediction, Loan Risk Scoring, Leave Optimization, OCR, Document Classification, Fraud Detection, and Sentiment Analysis.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Chatbot & NLP",
+			"item": [
+				{
+					"name": "Mejj - Send Message (HuggingFace)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": \"Hello Mejj! Can you explain how salary advances work in this company?\",\n    \"session_id\": \"sess-99283\",\n    \"user_id\": 123\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/chatbot/message/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"chatbot",
+								"message",
+								""
+							]
+						},
+						"description": "Calls the generative Chatbot engine 'Mejj'. Requires HUGGINGFACE_API_KEY for generative answers."
+					}
+				}
+			]
+		},
+		{
+			"name": "HR ML Services",
+			"item": [
+				{
+					"name": "Turnover Prediction (Ensemble)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"salary\": 4500,\n    \"tenure_years\": 4.5,\n    \"last_promotion_years\": 2.0,\n    \"projects_completed\": 12,\n    \"monthly_hours\": 170,\n    \"satisfaction_level\": 0.65\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/turnover/predict/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"turnover",
+								"predict",
+								""
+							]
+						},
+						"description": "Predicts employee turnover risk using a Voting Classifier (RandomForest + GradientBoosting)."
+					}
+				},
+				{
+					"name": "Loan Risk Assessment (XGBoost Ensemble)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"salary\": 5000,\n    \"loan_amount\": 15000,\n    \"duration_months\": 36,\n    \"tenure_years\": 3,\n    \"current_debt\": 500\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/loan/assess-risk/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"loan",
+								"assess-risk",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "Leave Optimizer (Prophet)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"employee_id\": 45,\n    \"department_id\": 2,\n    \"prefered_month\": 8,\n    \"year\": 2026\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/leave/optimal-dates/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"leave",
+								"optimal-dates",
+								""
+							]
+						},
+						"description": "Suggests optimal leave dates based on seasonal team workload forecasted via Facebook Prophet."
+					}
+				}
+			]
+		},
+		{
+			"name": "Insurance & Security ML",
+			"item": [
+				{
+					"name": "Fraud Detection (Anomaly Ensemble)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 8500,\n    \"frequency_30d\": 5,\n    \"days_since_last\": 2,\n    \"provider_id\": \"P-999\",\n    \"is_duplicate\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/fraud/detect/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"fraud",
+								"detect",
+								""
+							]
+						},
+						"description": "Aggregated fraud score using Isolation Forest, Random Forest, and Heuristics."
+					}
+				},
+				{
+					"name": "Document Classification (Zero-Shot Transformers)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"text\": \"I hereby submit a claim for medical expenses incurred at MedCare Clinic on May 15th for an emergency dental procedure totaling $450.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/document/classify/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"document",
+								"classify",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "OCR Process (Field Extraction)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"image_path\": \"/uploads/invoice_001.png\",\n    \"raw_text\": \"DENTAL CARE CENTER\\nDate: 2026-04-12\\nTotal Due: $240.50\\nInv: #DC-882\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai/ocr/process/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ai",
+								"ocr",
+								"process",
+								""
+							]
+						}
+					}
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{jwt_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000",
+			"type": "string"
+		},
+		{
+			"key": "jwt_token",
+			"value": "PASTE_YOUR_LARAVEL_JWT_HERE",
+			"type": "string"
+		}
+	]
+}
