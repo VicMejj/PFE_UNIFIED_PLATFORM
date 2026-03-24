@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\Travel;
+use App\Http\Controllers\Api\CrudTrait;
+use App\Models\Employee\Travel;
 use Illuminate\Http\Request;
 
 class TravelController extends ApiController
 {
     use CrudTrait;
 
-    protected $modelClass = \App\Models\Travel::class;
+    protected $modelClass = Travel::class;
     protected $validationRules = [];
 
     public function index(Request $request)

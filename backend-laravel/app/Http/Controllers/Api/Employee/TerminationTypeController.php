@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\TerminationType;
+use App\Http\Controllers\Api\CrudTrait;
+use App\Models\Employee\TerminationType;
 use Illuminate\Http\Request;
 
 class TerminationTypeController extends ApiController
 {
     use CrudTrait;
 
-    protected $modelClass = \App\Models\TerminationType::class;
+    protected $modelClass = TerminationType::class;
     protected $validationRules = [];
 
     public function index(Request $request)

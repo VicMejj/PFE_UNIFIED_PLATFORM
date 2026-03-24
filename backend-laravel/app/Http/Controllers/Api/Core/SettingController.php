@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Core;
 
 use App\Http\Controllers\Api\ApiController;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -15,18 +16,28 @@ class SettingController extends ApiController
      */
     public function index()
     {
-        // Get all settings from configuration
+        $dbSettings = Setting::whereIn('key', [
+            'company.name',
+            'company.email',
+            'company.phone',
+            'company.address',
+            'system.timezone',
+            'system.locale',
+            'system.currency',
+        ])->get()->keyBy('key');
+
+        // Get all settings from configuration with DB overrides
         $settings = [
             'company' => [
-                'name' => config('app.company_name', ''),
-                'email' => config('app.company_email', ''),
-                'phone' => config('app.company_phone', ''),
-                'address' => config('app.company_address', ''),
+                'name' => $this->resolveSettingValue($dbSettings, 'company.name', config('app.company_name', '')),
+                'email' => $this->resolveSettingValue($dbSettings, 'company.email', config('app.company_email', '')),
+                'phone' => $this->resolveSettingValue($dbSettings, 'company.phone', config('app.company_phone', '')),
+                'address' => $this->resolveSettingValue($dbSettings, 'company.address', config('app.company_address', '')),
             ],
             'system' => [
-                'timezone' => config('app.timezone'),
-                'locale' => config('app.locale'),
-                'currency' => config('app.currency', 'USD'),
+                'timezone' => $this->resolveSettingValue($dbSettings, 'system.timezone', config('app.timezone')),
+                'locale' => $this->resolveSettingValue($dbSettings, 'system.locale', config('app.locale')),
+                'currency' => $this->resolveSettingValue($dbSettings, 'system.currency', config('app.currency', 'USD')),
             ],
             'modules' => [
                 'attendance' => config('modules.attendance.enabled', true),
@@ -45,27 +56,62 @@ class SettingController extends ApiController
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request)
+    public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'company.name' => 'sometimes|string|max:255',
-            'company.email' => 'sometimes|email',
-            'company.phone' => 'sometimes|string|max:15',
-            'company.address' => 'sometimes|string',
-            'system.timezone' => 'sometimes|string|timezone',
-            'system.locale' => 'sometimes|string',
-            'system.currency' => 'sometimes|string|size:3',
+            'key' => 'required|string|max:255|unique:settings,key',
+            'value' => 'nullable',
+            'type' => 'sometimes|string|in:string,integer,boolean,json',
+            'description' => 'nullable|string',
+            'category' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
-        // Store settings (implementation depends on how settings are stored)
-        // For now, return the updated settings
-        $updatedSettings = $request->all();
+        $setting = Setting::create([
+            'key' => $request->key,
+            'value' => $request->value,
+            'type' => $request->type ?? 'string',
+            'description' => $request->description,
+            'category' => $request->category,
+        ]);
 
-        return $this->successResponse($updatedSettings, 'Settings updated successfully');
+        return $this->successResponse($setting, 'Setting created successfully', 201);
+    }
+
+    public function show($id)
+    {
+        $setting = Setting::findOrFail($id);
+        return $this->successResponse($setting, 'Setting retrieved successfully');
+    }
+
+    public function update(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'key' => 'sometimes|required|string|max:255|unique:settings,key,' . $id,
+            'value' => 'nullable',
+            'type' => 'sometimes|string|in:string,integer,boolean,json',
+            'description' => 'nullable|string',
+            'category' => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
+        }
+
+        $setting = Setting::findOrFail($id);
+        $setting->update($request->only(['key', 'value', 'type', 'description', 'category']));
+
+        return $this->successResponse($setting, 'Settings updated successfully');
+    }
+
+    public function destroy($id)
+    {
+        $setting = Setting::findOrFail($id);
+        $setting->delete();
+        return response()->json(null, 204);
     }
 
     /**
@@ -100,11 +146,28 @@ class SettingController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         // Update the setting (implementation depends on storage method)
         
         return $this->successResponse(['key' => $key, 'value' => $request->value], 'Setting updated successfully');
+    }
+
+    private function resolveSettingValue($settings, string $key, $fallback)
+    {
+        if (! $settings->has($key)) {
+            return $fallback;
+        }
+
+        $setting = $settings->get($key);
+        $value = $setting->value;
+
+        return match ($setting->type) {
+            'integer' => (int) $value,
+            'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? (bool) $value,
+            'json' => json_decode($value, true) ?? $value,
+            default => $value,
+        };
     }
 }

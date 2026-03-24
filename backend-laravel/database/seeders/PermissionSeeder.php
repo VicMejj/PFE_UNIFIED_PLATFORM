@@ -50,6 +50,48 @@ class PermissionSeeder extends Seeder
             // Permissions
             'view permissions',
             'assign permissions',
+
+            // Insurance Providers
+            'view insurance providers',
+            'create insurance providers',
+            'edit insurance providers',
+            'delete insurance providers',
+
+            // Insurance Policies
+            'view insurance policies',
+            'create insurance policies',
+            'edit insurance policies',
+            'delete insurance policies',
+
+            // Insurance Enrollments
+            'view insurance enrollments',
+            'create insurance enrollments',
+            'edit insurance enrollments',
+            'delete insurance enrollments',
+
+            // Insurance Claims
+            'view insurance claims',
+            'create insurance claims',
+            'edit insurance claims',
+            'delete insurance claims',
+
+            // Insurance Dependents
+            'view insurance dependents',
+            'create insurance dependents',
+            'edit insurance dependents',
+            'delete insurance dependents',
+
+            // Insurance Premiums
+            'view insurance premiums',
+            'create insurance premiums',
+            'edit insurance premiums',
+            'delete insurance premiums',
+
+            // Insurance Bordereaux
+            'view insurance',
+            'create insurance',
+            'edit insurance',
+            'delete insurance',
         ];
 
         foreach ($permissions as $permission) {

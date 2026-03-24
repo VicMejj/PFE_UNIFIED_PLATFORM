@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Performance;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\CompanyPolicy;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class CompanyPolicyController extends ApiController

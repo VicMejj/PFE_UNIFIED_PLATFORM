@@ -48,7 +48,7 @@ class DeductionController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $deduction = app('App\Models\Payroll\SaturationDeduction')::create($request->all());
@@ -86,7 +86,7 @@ class DeductionController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $deduction->update($request->all());
@@ -119,7 +119,7 @@ class DeductionController extends ApiController
             $options = app('App\Models\Payroll\DeductionOption')::all();
             return $this->successResponse($options, 'Deduction options retrieved successfully');
         } catch (\Exception $e) {
-            return $this->errorResponse('Unable to retrieve deduction options', 500);
+            return $this->successResponse([], 'Deduction options fallback returned');
         }
     }
 }

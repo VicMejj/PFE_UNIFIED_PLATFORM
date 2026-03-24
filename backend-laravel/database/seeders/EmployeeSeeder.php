@@ -90,21 +90,26 @@ class EmployeeSeeder extends Seeder
         ];
 
         foreach ($employees as $empData) {
-            $user = User::create([
-                'name' => $empData['name'],
-                'email' => $empData['email'],
-                'password' => Hash::make('password123'),
-                'type' => 'employee',
-                'avatar' => 'https://ui-avatars.com/api/?name=' . urlencode($empData['name']),
-                'lang' => 'en',
-                'created_by' => 'admin',
-                'email_verified_at' => now(),
-            ]);
+            $user = User::updateOrCreate(
+                ['email' => $empData['email']],
+                [
+                    'name' => $empData['name'],
+                    'password' => Hash::make('password123'),
+                    'type' => 'employee',
+                    'avatar' => 'https://ui-avatars.com/api/?name=' . urlencode($empData['name']),
+                    'lang' => 'en',
+                    'created_by' => 'admin',
+                    'email_verified_at' => now(),
+                ]
+            );
 
             $empData['user_id'] = $user->id;
             $empData['created_by'] = $user->id;
             $empData['password'] = 'password123';
-            Employee::create($empData);
+            Employee::updateOrCreate(
+                ['employee_id' => $empData['employee_id']],
+                $empData
+            );
         }
     }
 }

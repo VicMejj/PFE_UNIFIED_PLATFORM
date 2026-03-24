@@ -8,6 +8,7 @@ class InsuranceProvider extends Model
 {
     protected $fillable = [
         'name',
+        'contact_info',
         'provider_code',
         'contact_person',
         'email',

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Contract;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\ContractType;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class ContractTypeController extends ApiController

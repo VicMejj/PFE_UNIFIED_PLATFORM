@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Payroll;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Overtime;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class OvertimeController extends ApiController

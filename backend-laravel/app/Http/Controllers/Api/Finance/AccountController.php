@@ -4,9 +4,10 @@ namespace App\Http\Controllers\Api\Finance;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\AccountList;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
-class AccountListController extends ApiController
+class AccountController extends ApiController
 {
     use CrudTrait;
 

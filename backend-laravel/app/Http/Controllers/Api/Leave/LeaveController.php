@@ -40,11 +40,48 @@ class LeaveController extends ApiController
         return $this->crudDestroy($id);
     }
 
+    public function approveByManager($id)
+    {
+        $leave = Leave::findOrFail($id);
+        $leave->status = 'approved_by_manager';
+        $leave->approved_by = auth()->id();
+        $leave->save();
+
+        return $this->successResponse($leave, 'Leave approved by manager');
+    }
+
+    public function approveByHR($id)
+    {
+        $leave = Leave::findOrFail($id);
+        $leave->status = 'approved';
+        $leave->approved_by = auth()->id();
+        $leave->save();
+
+        return $this->successResponse($leave, 'Leave approved by HR');
+    }
+
+    public function reject(Request $request, $id)
+    {
+        $leave = Leave::findOrFail($id);
+        $leave->status = 'rejected';
+        $leave->rejected_by = auth()->id();
+        $leave->save();
+
+        return $this->successResponse($leave, 'Leave rejected');
+    }
+
     public function getOptimalDates(Request $request)
     {
-        $response = $this->djangoPost('/api/ai/leave/optimal-dates/', [
-            'employee_id' => auth()->id() ?? 1,
-        ]);
-        return $this->forwardDjangoResponse($response);
+        try {
+            $response = $this->djangoPost('/api/ai/leave/optimal-dates/', [
+                'employee_id' => auth()->id() ?? 1,
+            ]);
+            return $this->forwardDjangoResponse($response);
+        } catch (\Throwable $e) {
+            return $this->successResponse([
+                'suggested_dates' => [],
+                'note' => 'AI service unavailable',
+            ], 'Optimal dates fallback returned');
+        }
     }
 }

@@ -3,11 +3,17 @@
 namespace App\Http\Controllers\Api\Insurance;
 
 use App\Http\Controllers\Api\ApiController;
+use App\Models\Insurance\InsuranceEnrollment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class InsurancePremiumController extends ApiController
 {
+    public function store(Request $request)
+    {
+        return $this->recordPayment($request);
+    }
+
     /**
      * Display premiums
      *
@@ -53,12 +59,11 @@ class InsurancePremiumController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         try {
-            $model = app('App\Models\Insurance\InsuranceEnrollment');
-            $enrollment = $model::with('policy')->findOrFail($enrollmentId);
+            $enrollment = InsuranceEnrollment::with('policy')->findOrFail($enrollmentId);
 
             $baseAmount = $enrollment->policy->base_premium ?? 0;
             $dependentsCount = $enrollment->dependents()->count();
@@ -94,7 +99,7 @@ class InsurancePremiumController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         try {
@@ -119,8 +124,7 @@ class InsurancePremiumController extends ApiController
     public function getPaymentHistory($enrollmentId)
     {
         try {
-            $model = app('App\Models\Insurance\InsuranceEnrollment');
-            $enrollment = $model::findOrFail($enrollmentId);
+            $enrollment = InsuranceEnrollment::findOrFail($enrollmentId);
 
             // TODO: Retrieve payment history from database
             $history = [];
@@ -140,7 +144,7 @@ class InsurancePremiumController extends ApiController
     public function getSummary(Request $request)
     {
         try {
-            $query = app('App\Models\Insurance\InsuranceEnrollment')::query();
+            $query = InsuranceEnrollment::query();
 
             if ($request->has('policy_id')) {
                 $query->where('policy_id', $request->policy_id);
@@ -159,6 +163,47 @@ class InsurancePremiumController extends ApiController
             return $this->successResponse($summary, 'Premium summary retrieved successfully');
         } catch (\Exception $e) {
             return $this->errorResponse('Unable to retrieve summary', 500);
+        }
+    }
+
+    public function show($id)
+    {
+        try {
+            $enrollment = InsuranceEnrollment::with(['employee', 'policy'])->findOrFail($id);
+            return $this->successResponse($enrollment, 'Premium enrollment retrieved successfully');
+        } catch (\Exception $e) {
+            return $this->errorResponse('Unable to retrieve premium enrollment', 500);
+        }
+    }
+
+    public function update(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'premium_amount' => 'sometimes|numeric|min:0',
+            'status' => 'sometimes|string|in:active,suspended,terminated,pending',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
+        }
+
+        try {
+            $enrollment = InsuranceEnrollment::findOrFail($id);
+            $enrollment->update($request->only(['premium_amount', 'status']));
+            return $this->successResponse($enrollment, 'Premium enrollment updated successfully');
+        } catch (\Exception $e) {
+            return $this->errorResponse('Unable to update premium enrollment', 500);
+        }
+    }
+
+    public function destroy($id)
+    {
+        try {
+            $enrollment = InsuranceEnrollment::findOrFail($id);
+            $enrollment->delete();
+            return response()->json(null, 204);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Unable to delete premium enrollment', 500);
         }
     }
 }

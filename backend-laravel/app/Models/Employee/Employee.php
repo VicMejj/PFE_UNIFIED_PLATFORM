@@ -10,9 +10,9 @@ use App\Models\Leave\Leave;
 use App\Models\Payroll\PaySlip;
 use App\Models\Payroll\Loan;
 use App\Models\Payroll\Allowance;
-use App\Models\Payroll\Award;
 use App\Models\Insurance\InsuranceEnrollment;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class Employee extends Model
 {
@@ -20,40 +20,37 @@ class Employee extends Model
 
     protected $fillable = [
         'user_id',
+        'name',
         'employee_id',
-        'first_name',
-        'last_name',
         'email',
         'phone',
         'dob',
         'gender',
-        'marital_status',
-        'blood_group',
         'branch_id',
         'department_id',
         'designation_id',
         'company_doj',
-        'company_doi',
         'address',
-        'city',
-        'state',
-        'postal_code',
-        'country',
+        'password',
+        'documents',
+        'account_holder_name',
+        'account_number',
         'bank_name',
-        'bank_account',
-        'bank_ifsc',
-        'pan',
-        'aadhaar',
-        'status',
-        'notes',
+        'bank_identifier_code',
+        'branch_location',
+        'tax_payer_id',
+        'salary_type',
+        'account_type',
+        'salary',
+        'is_active',
         'created_by',
-        'updated_by'
     ];
 
     protected $casts = [
         'dob' => 'date',
         'company_doj' => 'date',
-        'company_doi' => 'date'
+        'is_active' => 'boolean',
+        'salary' => 'float',
     ];
 
     public function user()
@@ -113,18 +110,29 @@ class Employee extends Model
 
     public function getFullNameAttribute()
     {
-        return "{$this->first_name} {$this->last_name}";
+        return $this->name;
     }
 
     public function getTenureYearsAttribute()
     {
-        if (!$this->company_doj) return 0;
-        return now()->diffInYears($this->company_doj);
+        if (! $this->company_doj) {
+            return 0;
+        }
+
+        $companyDoj = $this->company_doj instanceof Carbon
+            ? $this->company_doj
+            : Carbon::parse($this->company_doj);
+
+        if ($companyDoj->isFuture()) {
+            return 0;
+        }
+
+        return (int) $companyDoj->diffInYears(now());
     }
 
     public function scopeActive($query)
     {
-        return $query->where('status', 'active');
+        return $query->where('is_active', 1);
     }
 
     public function scopeByDepartment($query, $deptId)

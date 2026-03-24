@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Leave;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\LeaveType;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class LeaveTypeController extends ApiController

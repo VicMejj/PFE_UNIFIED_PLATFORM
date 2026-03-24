@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Communication;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Event;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class EventController extends ApiController

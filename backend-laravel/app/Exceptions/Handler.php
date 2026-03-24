@@ -9,9 +9,11 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Authorization\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
+use Spatie\Permission\Exceptions\UnauthorizedException as SpatieUnauthorizedException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Throwable;
+use PHPOpenSourceSaver\JWTAuth\Exceptions\TokenExpiredException;
 
 class Handler extends ExceptionHandler
 {
@@ -82,6 +84,15 @@ class Handler extends ExceptionHandler
             ], Response::HTTP_FORBIDDEN);
         }
 
+        // Handle Spatie permission exceptions
+        if ($exception instanceof SpatieUnauthorizedException) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Forbidden - Insufficient permissions',
+                'timestamp' => now()->toIso8601String(),
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         // Handle model not found exceptions (404 on show/edit/delete)
         if ($exception instanceof ModelNotFoundException) {
             $model = class_basename($exception->getModel());
@@ -108,6 +119,15 @@ class Handler extends ExceptionHandler
                 'message' => 'Method not allowed',
                 'timestamp' => now()->toIso8601String(),
             ], Response::HTTP_METHOD_NOT_ALLOWED);
+        }
+
+        // Handle JWT token expired exceptions
+        if ($exception instanceof TokenExpiredException) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token has been expired',
+                'timestamp' => now()->toIso8601String(),
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         // Handle generic exceptions

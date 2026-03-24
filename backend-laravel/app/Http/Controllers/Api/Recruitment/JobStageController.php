@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Recruitment;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\JobStage;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class JobStageController extends ApiController

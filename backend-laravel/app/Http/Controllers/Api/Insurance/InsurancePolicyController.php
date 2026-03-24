@@ -23,7 +23,10 @@ class InsurancePolicyController extends ApiController
     {
         $query = InsurancePolicy::with('provider');
         if ($search = $request->query('search')) {
-            $query->where('name', 'ilike', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('policy_name', 'like', "%{$search}%");
+            });
         }
         return $this->successResponse($query->paginate());
     }
@@ -32,12 +35,25 @@ class InsurancePolicyController extends ApiController
     {
         $data = $request->validate([
             'provider_id' => 'required|exists:insurance_providers,id',
-            'name' => 'required|string|max:255',
+            'name' => 'sometimes|string|max:255',
+            'policy_name' => 'sometimes|string|max:255',
             'coverage_details' => 'sometimes|string',
-            'premium' => 'numeric',
+            'premium' => 'sometimes|numeric',
+            'premium_amount' => 'sometimes|numeric',
             'is_active' => 'boolean',
         ]);
-        $policy = InsurancePolicy::create($data);
+        $policyName = $data['policy_name'] ?? $data['name'] ?? null;
+        $premiumAmount = $data['premium_amount'] ?? $data['premium'] ?? null;
+        $payload = [
+            'provider_id' => $data['provider_id'],
+            'name' => $policyName,
+            'policy_name' => $policyName,
+            'premium' => $premiumAmount,
+            'premium_amount' => $premiumAmount,
+            'coverage_details' => $data['coverage_details'] ?? null,
+            'is_active' => $data['is_active'] ?? true,
+        ];
+        $policy = InsurancePolicy::create(array_filter($payload, fn ($value) => $value !== null));
         return $this->successResponse($policy, 'Insurance policy created', 201);
     }
 
@@ -53,11 +69,24 @@ class InsurancePolicyController extends ApiController
         $data = $request->validate([
             'provider_id' => 'sometimes|exists:insurance_providers,id',
             'name' => 'sometimes|required|string|max:255',
+            'policy_name' => 'sometimes|required|string|max:255',
             'coverage_details' => 'sometimes|string',
-            'premium' => 'numeric',
+            'premium' => 'sometimes|numeric',
+            'premium_amount' => 'sometimes|numeric',
             'is_active' => 'boolean',
         ]);
-        $policy->update($data);
+        $policyName = $data['policy_name'] ?? $data['name'] ?? null;
+        $premiumAmount = $data['premium_amount'] ?? $data['premium'] ?? null;
+        $payload = [
+            'provider_id' => $data['provider_id'] ?? null,
+            'name' => $policyName,
+            'policy_name' => $policyName,
+            'premium' => $premiumAmount,
+            'premium_amount' => $premiumAmount,
+            'coverage_details' => $data['coverage_details'] ?? null,
+            'is_active' => $data['is_active'] ?? null,
+        ];
+        $policy->update(array_filter($payload, fn ($value) => $value !== null));
         return $this->successResponse($policy);
     }
 

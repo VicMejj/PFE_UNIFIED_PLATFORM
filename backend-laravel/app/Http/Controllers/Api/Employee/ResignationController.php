@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\Resignation;
+use App\Http\Controllers\Api\CrudTrait;
+use App\Models\Employee\Resignation;
 use Illuminate\Http\Request;
 
 class ResignationController extends ApiController
 {
     use CrudTrait;
 
-    protected $modelClass = \App\Models\Resignation::class;
+    protected $modelClass = Resignation::class;
     protected $validationRules = [];
 
     public function index(Request $request)

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Communication;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Announcement;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class AnnouncementController extends ApiController

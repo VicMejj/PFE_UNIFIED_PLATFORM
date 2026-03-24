@@ -4,9 +4,10 @@ namespace App\Http\Controllers\Api\Recruitment;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\InterviewSchedule;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
-class InterviewScheduleController extends ApiController
+class InterviewController extends ApiController
 {
     use CrudTrait;
 

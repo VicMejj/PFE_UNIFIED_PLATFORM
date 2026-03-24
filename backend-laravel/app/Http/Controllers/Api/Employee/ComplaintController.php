@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\Complaint;
+use App\Http\Controllers\Api\CrudTrait;
+use App\Models\Employee\Complaint;
 use Illuminate\Http\Request;
 
 class ComplaintController extends ApiController
 {
     use CrudTrait;
 
-    protected $modelClass = \App\Models\Complaint::class;
+    protected $modelClass = Complaint::class;
     protected $validationRules = [];
 
     public function index(Request $request)

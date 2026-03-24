@@ -20,7 +20,7 @@ class Asset extends Model
     protected $casts = [
         'purchase_date' => 'date',
         'purchase_price' => 'decimal:2',
-        'depreciation_rate' => 'decimal:5,2',
+        'depreciation_rate' => 'decimal:2',
         'current_value' => 'decimal:2'
     ];
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Core;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Language;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class LanguageController extends ApiController

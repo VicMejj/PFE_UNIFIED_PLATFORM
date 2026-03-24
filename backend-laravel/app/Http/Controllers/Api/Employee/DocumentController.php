@@ -3,15 +3,23 @@
 namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\Document;
+use App\Http\Controllers\Api\CrudTrait;
+use App\Models\Employee\Document;
 use Illuminate\Http\Request;
 
 class DocumentController extends ApiController
 {
     use CrudTrait;
 
-    protected $modelClass = \App\Models\Document::class;
-    protected $validationRules = [];
+    protected $modelClass = Document::class;
+    protected $storeValidationRules = [
+        'name' => 'required|string|max:255',
+        'description' => 'nullable|string',
+    ];
+    protected $updateValidationRules = [
+        'name' => 'sometimes|required|string|max:255',
+        'description' => 'sometimes|nullable|string',
+    ];
 
     public function index(Request $request)
     {

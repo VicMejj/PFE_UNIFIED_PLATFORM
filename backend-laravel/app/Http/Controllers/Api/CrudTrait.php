@@ -2,30 +2,21 @@
 
 namespace App\Http\Controllers\Api;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 trait CrudTrait
 {
-    /**
-     * Model class name including namespace.
-     * @var string
-     */
-    protected $modelClass;
-
-    /**
-     * Validation rules for store/update operations.
-     * Should be defined in the controller.
-     * @var array
-     */
-    protected $validationRules = [];
+    // Controllers using this trait MUST define:
+    //   protected $modelClass;          — FQCN of the Eloquent model
+    //   protected $validationRules = []; — validation rules for store/update
 
     public function crudIndex(Request $request)
     {
         $query = ($this->modelClass)::query();
 
-        if ($search = $request->query('search')) {
-            // assume a "name" column if no explicit rules
-            $query->where('name', 'ilike', "%{$search}%");
+        if (($search = $request->query('search')) && ($column = $this->getCrudSearchColumn())) {
+            $query->where($column, 'like', "%{$search}%");
         }
 
         $data = $query->paginate();
@@ -37,7 +28,7 @@ trait CrudTrait
 
     public function crudStore(Request $request)
     {
-        $data = $request->validate($this->validationRules);
+        $data = $this->resolveCrudData($request, 'store');
         $model = ($this->modelClass)::create($data);
         if (isset($this->resourceClass)) {
             $model = new $this->resourceClass($model);
@@ -57,7 +48,7 @@ trait CrudTrait
     public function crudUpdate(Request $request, $id)
     {
         $model = ($this->modelClass)::findOrFail($id);
-        $data = $request->validate($this->validationRules);
+        $data = $this->resolveCrudData($request, 'update');
         $model->update($data);
         if (isset($this->resourceClass)) {
             $model = new $this->resourceClass($model);
@@ -70,5 +61,47 @@ trait CrudTrait
         $model = ($this->modelClass)::findOrFail($id);
         $model->delete();
         return response()->json(null, 204);
+    }
+
+    protected function resolveCrudData(Request $request, string $context): array
+    {
+        $rules = $this->getCrudValidationRules($context);
+
+        if (! empty($rules)) {
+            return $request->validate($rules);
+        }
+
+        return $request->only($this->newCrudModel()->getFillable());
+    }
+
+    protected function getCrudValidationRules(string $context): array
+    {
+        if ($context === 'store' && isset($this->storeValidationRules) && ! empty($this->storeValidationRules)) {
+            return $this->storeValidationRules;
+        }
+
+        if ($context === 'update' && isset($this->updateValidationRules) && ! empty($this->updateValidationRules)) {
+            return $this->updateValidationRules;
+        }
+
+        return $this->validationRules ?? [];
+    }
+
+    protected function getCrudSearchColumn(): ?string
+    {
+        $fillable = $this->newCrudModel()->getFillable();
+
+        foreach (['name', 'title', 'document_name', 'document_type', 'file_name'] as $column) {
+            if (in_array($column, $fillable, true)) {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    protected function newCrudModel(): Model
+    {
+        return new $this->modelClass();
     }
 }

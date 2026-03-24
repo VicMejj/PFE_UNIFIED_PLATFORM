@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\Award;
+use App\Http\Controllers\Api\CrudTrait;
+use App\Models\Employee\Award;
 use Illuminate\Http\Request;
 
 class AwardController extends ApiController

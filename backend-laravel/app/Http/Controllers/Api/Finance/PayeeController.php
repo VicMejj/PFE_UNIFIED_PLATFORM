@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Finance;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Payee;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class PayeeController extends ApiController

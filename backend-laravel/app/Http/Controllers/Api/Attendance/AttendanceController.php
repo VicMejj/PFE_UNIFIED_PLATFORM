@@ -60,7 +60,7 @@ class AttendanceController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         // Check if attendance already exists for this date and employee
@@ -115,7 +115,7 @@ class AttendanceController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $attendance->update($request->only(['check_in', 'check_out', 'status', 'notes']));
@@ -152,7 +152,7 @@ class AttendanceController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $query = TimeSheet::whereBetween('date', [$request->date_from, $request->date_to]);

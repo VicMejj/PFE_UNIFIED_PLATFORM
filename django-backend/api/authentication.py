@@ -1,5 +1,6 @@
 import jwt
 import os
+from django.conf import settings
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 
@@ -20,7 +21,10 @@ class LaravelJWTAuthentication(BaseAuthentication):
         token = auth_header.split(' ')[1]
 
         try:
-            secret = os.environ.get('JWT_SECRET', 'Nzs4n58jW9QGXNMC2Yrrpji8nvzlzuji5VCX0YoIdUsN6ttES7SG9jkksI6SvbvX')
+            # Prefer an explicit environment variable so deployments can override it,
+            # but fall back to the Django settings JWT_SECRET (which defaults to the
+            # same value as Laravel's .env in this repo).
+            secret = os.environ.get('JWT_SECRET', getattr(settings, 'JWT_SECRET', 'Nzs4n58jW9QGXNMC2Yrrpji8nvzlzuji5VCX0YoIdUsN6ttES7SG9jkksI6SvbvX'))
             payload = jwt.decode(
                 token,
                 secret,

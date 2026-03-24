@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\AwardType;
+use App\Http\Controllers\Api\CrudTrait;
+use App\Models\Employee\AwardType;
 use Illuminate\Http\Request;
 
 class AwardTypeController extends ApiController
 {
     use CrudTrait;
 
-    protected $modelClass = \App\Models\AwardType::class;
+    protected $modelClass = AwardType::class;
     protected $validationRules = [];
 
     public function index(Request $request)

@@ -7,12 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 class InsurancePolicy extends Model
 {
     protected $fillable = [
+        'name',
         'policy_number',
         'policy_name',
         'provider_id',
         'policy_type',
         'start_date',
         'end_date',
+        'premium',
         'premium_amount',
         'coverage_amount',
         'coverage_details',

@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class InsuranceBordereau extends Model
 {
+    protected $table = 'insurance_bordereaux';
+
     protected $fillable = [
         'bordereau_number',
         'policy_id',

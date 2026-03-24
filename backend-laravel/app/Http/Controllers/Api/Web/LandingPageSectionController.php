@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Web;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\LandingPageSection;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class LandingPageSectionController extends ApiController

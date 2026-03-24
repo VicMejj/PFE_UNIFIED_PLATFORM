@@ -18,7 +18,7 @@ class BranchSeeder extends Seeder
         ];
 
         foreach ($branches as $branch) {
-            Branch::create($branch);
+            Branch::updateOrCreate(['name' => $branch['name']], $branch);
         }
     }
 }

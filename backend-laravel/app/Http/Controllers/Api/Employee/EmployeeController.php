@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\Employee;
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Controllers\Api\CrudTrait;
 use App\Http\Controllers\Api\CallsDjangoAI;
-use App\Models\Employee;
+use App\Models\Employee\Employee;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -30,8 +32,8 @@ class EmployeeController extends ApiController
         // optional filters
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'ilike', "%{$search}%")
-                  ->orWhere('email', 'ilike', "%{$search}%");
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
             });
         }
         if ($branch = $request->query('branch_id')) {
@@ -50,11 +52,12 @@ class EmployeeController extends ApiController
     public function store(Request $request)
     {
         $data = $request->validate([
+            'user_id' => 'nullable|exists:users,id',
             'name' => 'required|string|max:255',
             'dob' => 'nullable|date',
-            'gender' => 'nullable|string|max:20',
+            'gender' => 'required|string|max:20',
             'phone' => 'nullable|string|max:50',
-            'address' => 'nullable|string|max:500',
+            'address' => 'required|string|max:500',
             'email' => 'required|email|unique:employees,email',
             'password' => 'nullable|string|min:6',
             'employee_id' => 'nullable|string|max:100|unique:employees,employee_id',
@@ -75,23 +78,40 @@ class EmployeeController extends ApiController
             'is_active' => 'nullable|boolean',
         ]);
 
-        $data['created_by'] = auth()->id();
-        if (! empty($data['password'])) {
-            $data['password'] = bcrypt($data['password']);
-        }
+        $employee = DB::transaction(function () use ($data) {
+            $data['created_by'] = auth()->id();
+            $plainPassword = $data['password'] ?? Str::random(12);
+            $hashedPassword = bcrypt($plainPassword);
+            $data['password'] = $hashedPassword;
+            $data['employee_id'] = $data['employee_id'] ?? 'EMP-'.strtoupper(Str::random(8));
+            $data['is_active'] = $data['is_active'] ?? true;
 
-        $employee = Employee::create($data);
+            if (! empty($data['user_id'])) {
+                $user = User::findOrFail($data['user_id']);
+            } else {
+                $user = User::create([
+                    'name' => $data['name'],
+                    'email' => $data['email'],
+                    'password' => $hashedPassword,
+                    'type' => 'user',
+                    'avatar' => 'avatars/default.png',
+                    'lang' => 'en',
+                    'created_by' => auth()->id() ?? 'system',
+                ]);
+            }
 
-        // automatically create user record if needed
-        if (! $employee->user) {
-            $user = $employee->user()->create([
-                'name' => $employee->name,
-                'email' => $employee->email,
-                'password' => bcrypt(Str::random(8)),
-            ]);
-            $employee->user_id = $user->id;
-            $employee->save();
-        }
+            $data['user_id'] = $user->id;
+            $employee = Employee::create($data);
+
+            if ($employee->user && $employee->user->email !== $data['email']) {
+                $employee->user->update([
+                    'name' => $data['name'],
+                    'email' => $data['email'],
+                ]);
+            }
+
+            return $employee;
+        });
 
         return $this->successResponse(new EmployeeResource($employee->load(['user','branch','department','designation'])), 'Employee created', 201);
     }
@@ -164,5 +184,27 @@ class EmployeeController extends ApiController
             'leaves_taken' => $employee->leaves()->count()
         ]);
         return $this->forwardDjangoResponse($response);
+    }
+
+    public function getStatistics($id)
+    {
+        $employee = Employee::withCount([
+            'documents',
+            'awards',
+            'leaves',
+            'insuranceEnrollments',
+        ])->findOrFail($id);
+
+        return $this->successResponse([
+            'employee_id' => $employee->id,
+            'name' => $employee->name,
+            'email' => $employee->email,
+            'is_active' => (bool) $employee->is_active,
+            'tenure_years' => $employee->tenure_years,
+            'documents_count' => $employee->documents_count,
+            'awards_count' => $employee->awards_count,
+            'leaves_count' => $employee->leaves_count,
+            'insurance_enrollments_count' => $employee->insurance_enrollments_count,
+        ], 'Employee statistics retrieved successfully');
     }
 }

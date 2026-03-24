@@ -10,6 +10,8 @@ class InsuranceEnrollment extends Model
     protected $fillable = [
         'employee_id',
         'policy_id',
+        'start_date',
+        'end_date',
         'enrollment_date',
         'effective_date',
         'status',
@@ -21,6 +23,8 @@ class InsuranceEnrollment extends Model
     ];
 
     protected $casts = [
+        'start_date' => 'date',
+        'end_date' => 'date',
         'enrollment_date' => 'date',
         'effective_date' => 'date',
         'employee_contribution' => 'decimal:2',

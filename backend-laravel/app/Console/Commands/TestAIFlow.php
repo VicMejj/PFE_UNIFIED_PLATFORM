@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
+use App\Models\User;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 class TestAIFlow extends Command
 {
@@ -33,6 +35,12 @@ class TestAIFlow extends Command
         $this->info(" Testing Laravel -> Django AI Integration");
         $this->info(" Django Target URL: {$djangoUrl}");
         $this->info("=============================================\n");
+
+        $token = $this->getJwtToken();
+        if (! $token) {
+            $this->error("❌ Could not generate a JWT token. Ensure an admin user exists (admin@example.com).");
+            return Command::FAILURE;
+        }
 
         $endpoints = [
             [
@@ -69,7 +77,9 @@ class TestAIFlow extends Command
         foreach ($endpoints as $ep) {
             $this->info("Pinging [{$ep['name']}] at {$ep['path']} ...");
             try {
-                $response = Http::timeout(5)->post($djangoUrl . $ep['path'], $ep['payload']);
+                $response = Http::timeout(10)
+                    ->withHeaders(['Authorization' => 'Bearer ' . $token])
+                    ->post($djangoUrl . $ep['path'], $ep['payload']);
                 
                 if ($response->successful()) {
                     $this->info("✅ SUCCESS: " . json_encode($response->json()));
@@ -91,6 +101,22 @@ class TestAIFlow extends Command
         } else {
             $this->error("\n⚠️ Some tests failed. Please check the Django logs and ensure the server is running.");
             return Command::FAILURE;
+        }
+    }
+
+    private function getJwtToken(): ?string
+    {
+        $user = User::where('email', 'admin@example.com')->first() ?? User::first();
+
+        if (! $user) {
+            return null;
+        }
+
+        try {
+            return JWTAuth::fromUser($user);
+        } catch (\Throwable $e) {
+            $this->error("JWT error: " . $e->getMessage());
+            return null;
         }
     }
 }

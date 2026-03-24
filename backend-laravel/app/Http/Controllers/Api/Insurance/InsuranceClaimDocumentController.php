@@ -26,7 +26,7 @@ class InsuranceClaimDocumentController extends ApiController
     {
         $query = InsuranceClaimDocument::query();
         if ($search = $request->query('search')) {
-            $query->where('file_name', 'ilike', "%{$search}%");
+            $query->where('file_name', 'like', "%{$search}%");
         }
         if ($claimId = $request->query('claim_id')) {
             $query->where('insurance_claim_id', $claimId);

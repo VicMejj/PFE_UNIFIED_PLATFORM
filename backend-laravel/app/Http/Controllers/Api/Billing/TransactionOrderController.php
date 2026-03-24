@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Billing;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\TransactionOrder;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class TransactionOrderController extends ApiController

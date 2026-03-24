@@ -9,8 +9,15 @@ cd django-backend
 uv run python manage.py runserver 8001 &
 DJANGO_PID=$!
 
-echo "⏳ Waiting 3 seconds for Django to initialize..."
-sleep 3
+echo "⏳ Waiting for Django to initialize..."
+for i in {1..20}; do
+  status=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8001/ || true)
+  if [ "$status" != "000" ]; then
+    echo "✅ Django is up (HTTP $status)."
+    break
+  fi
+  sleep 1
+done
 
 echo -e "\n🏃‍♀️ Step 2: Running the Laravel AI Integration Test...\n"
 cd ../backend-laravel

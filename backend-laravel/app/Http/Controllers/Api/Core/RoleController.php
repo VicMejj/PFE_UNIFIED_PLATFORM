@@ -37,7 +37,7 @@ class RoleController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $role = Role::create([
@@ -85,7 +85,7 @@ class RoleController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $role->update($request->only(['name', 'display_name', 'description']));
@@ -123,8 +123,9 @@ class RoleController extends ApiController
      */
     public function assignRoleToUser(Request $request, $userId)
     {
-        // Check authorization
-        if (! auth()->user()->hasRole('admin')) {
+        // Check authorization - ensure roles are loaded
+        $user = auth()->user()->load('roles');
+        if (! $user->hasRole('admin')) {
             return $this->forbiddenResponse('Only administrators can assign roles');
         }
 
@@ -133,7 +134,7 @@ class RoleController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $user = \App\Models\User::findOrFail($userId);
@@ -159,8 +160,9 @@ class RoleController extends ApiController
      */
     public function removeRoleFromUser(Request $request, $userId)
     {
-        // Check authorization
-        if (! auth()->user()->hasRole('admin')) {
+        // Check authorization - ensure roles are loaded
+        $user = auth()->user()->load('roles');
+        if (! $user->hasRole('admin')) {
             return $this->forbiddenResponse('Only administrators can remove roles');
         }
 
@@ -169,7 +171,7 @@ class RoleController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $user = \App\Models\User::findOrFail($userId);
@@ -211,8 +213,9 @@ class RoleController extends ApiController
      */
     public function getAllUsersWithRoles()
     {
-        // Check authorization
-        if (! auth()->user()->hasRole('admin')) {
+        // Check authorization - ensure roles are loaded
+        $user = auth()->user()->load('roles');
+        if (! $user->hasRole('admin')) {
             return $this->forbiddenResponse('Only administrators can view all user roles');
         }
 
@@ -238,8 +241,9 @@ class RoleController extends ApiController
      */
     public function getUsersByRole($roleName)
     {
-        // Check authorization
-        if (! auth()->user()->hasRole('admin')) {
+        // Check authorization - ensure roles are loaded
+        $user = auth()->user()->load('roles');
+        if (! $user->hasRole('admin')) {
             return $this->forbiddenResponse('Only administrators can filter users by role');
         }
 
@@ -264,8 +268,9 @@ class RoleController extends ApiController
      */
     public function syncUserRoles(Request $request, $userId)
     {
-        // Check authorization
-        if (! auth()->user()->hasRole('admin')) {
+        // Check authorization - ensure roles are loaded
+        $user = auth()->user()->load('roles');
+        if (! $user->hasRole('admin')) {
             return $this->forbiddenResponse('Only administrators can sync user roles');
         }
 
@@ -275,7 +280,7 @@ class RoleController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $user = \App\Models\User::findOrFail($userId);

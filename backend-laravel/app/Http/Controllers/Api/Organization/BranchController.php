@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\Organization;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Controllers\Api\CrudTrait;
-use App\Models\Branch;
+use App\Models\Organization\Branch;
 use Illuminate\Http\Request;
 use App\Http\Resources\BranchResource;
 
@@ -24,7 +24,7 @@ class BranchController extends ApiController
     {
         $query = Branch::query();
         if ($search = $request->query('search')) {
-            $query->where('name', 'ilike', "%{$search}%");
+            $query->where('name', 'like', "%{$search}%");
         }
         return $this->successResponse(BranchResource::collection($query->paginate()));
     }

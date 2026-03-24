@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\Transfer;
+use App\Http\Controllers\Api\CrudTrait;
+use App\Models\Employee\Transfer;
 use Illuminate\Http\Request;
 
 class TransferController extends ApiController
 {
     use CrudTrait;
 
-    protected $modelClass = \App\Models\Transfer::class;
+    protected $modelClass = Transfer::class;
     protected $validationRules = [];
 
     public function index(Request $request)

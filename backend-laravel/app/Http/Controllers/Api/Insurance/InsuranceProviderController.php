@@ -23,7 +23,7 @@ class InsuranceProviderController extends ApiController
     {
         $query = InsuranceProvider::query();
         if ($search = $request->query('search')) {
-            $query->where('name', 'ilike', "%{$search}%");
+            $query->where('name', 'like', "%{$search}%");
         }
         return $this->successResponse($query->paginate());
     }
@@ -62,5 +62,19 @@ class InsuranceProviderController extends ApiController
         $provider = InsuranceProvider::findOrFail($id);
         $provider->delete();
         return response()->json(null, 204);
+    }
+
+    public function activate($id)
+    {
+        $provider = InsuranceProvider::findOrFail($id);
+        $provider->update(['is_active' => true]);
+        return $this->successResponse($provider, 'Insurance provider activated');
+    }
+
+    public function deactivate($id)
+    {
+        $provider = InsuranceProvider::findOrFail($id);
+        $provider->update(['is_active' => false]);
+        return $this->successResponse($provider, 'Insurance provider deactivated');
     }
 }

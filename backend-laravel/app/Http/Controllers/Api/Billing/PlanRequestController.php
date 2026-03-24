@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Billing;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\PlanRequest;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class PlanRequestController extends ApiController

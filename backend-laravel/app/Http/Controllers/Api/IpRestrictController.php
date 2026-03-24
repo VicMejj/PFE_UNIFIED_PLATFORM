@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\IpRestrict;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
 class IpRestrictController extends ApiController

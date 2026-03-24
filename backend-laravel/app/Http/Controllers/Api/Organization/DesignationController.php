@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\Organization;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Controllers\Api\CrudTrait;
-use App\Models\Designation;
+use App\Models\Organization\Designation;
 use Illuminate\Http\Request;
 use App\Http\Resources\DesignationResource;
 
@@ -24,7 +24,7 @@ class DesignationController extends ApiController
     {
         $query = Designation::query();
         if ($search = $request->query('search')) {
-            $query->where('title', 'ilike', "%{$search}%");
+            $query->where('title', 'like', "%{$search}%");
         }
         return $this->successResponse(DesignationResource::collection($query->paginate()));
     }

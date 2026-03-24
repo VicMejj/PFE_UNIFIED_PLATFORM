@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class InsuranceClaimHistory extends Model
 {
+    protected $table = 'insurance_claim_history';
+
     protected $fillable = [
         'claim_id',
         'status',

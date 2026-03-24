@@ -26,7 +26,7 @@ class InsuranceClaimItemController extends ApiController
     {
         $query = InsuranceClaimItem::query();
         if ($search = $request->query('search')) {
-            $query->where('description', 'ilike', "%{$search}%");
+            $query->where('description', 'like', "%{$search}%");
         }
         if ($claimId = $request->query('claim_id')) {
             $query->where('insurance_claim_id', $claimId);

@@ -62,7 +62,7 @@ class TimeSheetController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $timesheet = TimeSheet::create($request->all());
@@ -102,7 +102,7 @@ class TimeSheetController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $timesheet->update($request->all());
@@ -139,7 +139,7 @@ class TimeSheetController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $query = TimeSheet::whereBetween('date', [$request->date_from, $request->date_to]);

@@ -17,11 +17,18 @@ class UserController extends ApiController
      */
     public function index(Request $request)
     {
+        // Check authorization - ensure roles are loaded
+        $user = auth()->user()->load('roles');
+        if (! $user->hasRole('admin')) {
+            return $this->forbiddenResponse('Only administrators can view all users');
+        }
+
         $query = User::query();
 
         if ($request->has('role')) {
-            $query->whereHas('roles', function ($q) {
-                $q->where('name', $request->role);
+            $role = $request->role;
+            $query->whereHas('roles', function ($q) use ($role) {
+                $q->where('name', $role);
             });
         }
 
@@ -48,16 +55,23 @@ class UserController extends ApiController
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:6|confirmed',
             'role_id' => 'nullable|exists:roles,id',
+            'type' => 'sometimes|string|max:50',
+            'avatar' => 'sometimes|string|max:255',
+            'lang' => 'sometimes|string|max:10',
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'type' => $request->input('type', 'user'),
+            'avatar' => $request->input('avatar', 'avatars/default.png'),
+            'lang' => $request->input('lang', 'en'),
+            'created_by' => auth()->id() ?? 'system',
         ]);
 
         if ($request->has('role_id')) {
@@ -77,6 +91,12 @@ class UserController extends ApiController
      */
     public function show($id)
     {
+        // Check authorization - ensure roles are loaded
+        $user = auth()->user()->load('roles');
+        if (! $user->hasRole('admin')) {
+            return $this->forbiddenResponse('Only administrators can view user details');
+        }
+
         $user = User::with('roles', 'permissions')->findOrFail($id);
         return $this->successResponse($user, 'User retrieved successfully');
     }
@@ -90,6 +110,12 @@ class UserController extends ApiController
      */
     public function update(Request $request, $id)
     {
+        // Check authorization - ensure roles are loaded
+        $user = auth()->user()->load('roles');
+        if (! $user->hasRole('admin')) {
+            return $this->forbiddenResponse('Only administrators can update users');
+        }
+
         $user = User::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
@@ -99,7 +125,7 @@ class UserController extends ApiController
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse('Validation failed', 422, $validator->errors());
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
         if ($request->has('name')) {
@@ -127,6 +153,12 @@ class UserController extends ApiController
      */
     public function destroy($id)
     {
+        // Check authorization - ensure roles are loaded
+        $user = auth()->user()->load('roles');
+        if (! $user->hasRole('admin')) {
+            return $this->forbiddenResponse('Only administrators can delete users');
+        }
+
         $user = User::findOrFail($id);
         $user->delete();
 

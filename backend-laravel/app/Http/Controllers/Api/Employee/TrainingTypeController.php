@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Api\Employee;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\TrainingType;
+use App\Http\Controllers\Api\CrudTrait;
+use App\Models\Performance\TrainingType;
 use Illuminate\Http\Request;
 
 class TrainingTypeController extends ApiController
 {
     use CrudTrait;
 
-    protected $modelClass = \App\Models\TrainingType::class;
+    protected $modelClass = TrainingType::class;
     protected $validationRules = [];
 
     public function index(Request $request)

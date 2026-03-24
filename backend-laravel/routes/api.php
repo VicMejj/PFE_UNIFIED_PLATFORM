@@ -42,7 +42,11 @@ Route::middleware('auth:api')->group(function () {
 
     // ===== EMPLOYEE ENDPOINTS =====
     Route::prefix('employees')->group(function () {
-        Route::apiResource('', App\Http\Controllers\Api\Employee\EmployeeController::class);
+        Route::get('/', [App\Http\Controllers\Api\Employee\EmployeeController::class, 'index']);
+        Route::post('/', [App\Http\Controllers\Api\Employee\EmployeeController::class, 'store']);
+        Route::get('{id}', [App\Http\Controllers\Api\Employee\EmployeeController::class, 'show'])->whereNumber('id');
+        Route::match(['put', 'patch'], '{id}', [App\Http\Controllers\Api\Employee\EmployeeController::class, 'update'])->whereNumber('id');
+        Route::delete('{id}', [App\Http\Controllers\Api\Employee\EmployeeController::class, 'destroy'])->whereNumber('id');
         Route::get('{id}/turnover-prediction', [App\Http\Controllers\Api\Employee\EmployeeController::class, 'getTurnoverPrediction']);
         Route::get('{id}/statistics', [App\Http\Controllers\Api\Employee\EmployeeController::class, 'getStatistics']);
         
@@ -65,7 +69,11 @@ Route::middleware('auth:api')->group(function () {
 
     // ===== LEAVE ENDPOINTS =====
     Route::prefix('leaves')->group(function () {
-        Route::apiResource('', App\Http\Controllers\Api\Leave\LeaveController::class);
+        Route::get('/', [App\Http\Controllers\Api\Leave\LeaveController::class, 'index']);
+        Route::post('/', [App\Http\Controllers\Api\Leave\LeaveController::class, 'store']);
+        Route::get('{id}', [App\Http\Controllers\Api\Leave\LeaveController::class, 'show'])->whereNumber('id');
+        Route::match(['put', 'patch'], '{id}', [App\Http\Controllers\Api\Leave\LeaveController::class, 'update'])->whereNumber('id');
+        Route::delete('{id}', [App\Http\Controllers\Api\Leave\LeaveController::class, 'destroy'])->whereNumber('id');
         Route::post('{id}/approve-by-manager', [App\Http\Controllers\Api\Leave\LeaveController::class, 'approveByManager']);
         Route::post('{id}/approve-by-hr', [App\Http\Controllers\Api\Leave\LeaveController::class, 'approveByHR']);
         Route::post('{id}/reject', [App\Http\Controllers\Api\Leave\LeaveController::class, 'reject']);
@@ -91,8 +99,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('loans/{id}/schedule', [App\Http\Controllers\Api\Payroll\LoanController::class, 'generateSchedule']);
         
         Route::apiResource('overtimes', App\Http\Controllers\Api\Payroll\OvertimeController::class);
-        Route::apiResource('deductions', App\Http\Controllers\Api\Payroll\DeductionController::class);
         Route::get('deductions/options', [App\Http\Controllers\Api\Payroll\DeductionController::class, 'getOptions']);
+        Route::apiResource('deductions', App\Http\Controllers\Api\Payroll\DeductionController::class);
         Route::apiResource('saturation-deductions', App\Http\Controllers\Api\Payroll\SaturationDeductionController::class);
         Route::apiResource('other-payments', App\Http\Controllers\Api\Payroll\OtherPaymentController::class);
         Route::apiResource('payment-types', App\Http\Controllers\Api\Payroll\PaymentTypeController::class);
@@ -156,7 +164,11 @@ Route::middleware('auth:api')->group(function () {
 
     // ===== CONTRACT ENDPOINTS =====
     Route::prefix('contracts')->group(function () {
-        Route::apiResource('', App\Http\Controllers\Api\Contract\ContractController::class);
+        Route::get('/', [App\Http\Controllers\Api\Contract\ContractController::class, 'index']);
+        Route::post('/', [App\Http\Controllers\Api\Contract\ContractController::class, 'store']);
+        Route::get('{id}', [App\Http\Controllers\Api\Contract\ContractController::class, 'show'])->whereNumber('id');
+        Route::match(['put', 'patch'], '{id}', [App\Http\Controllers\Api\Contract\ContractController::class, 'update'])->whereNumber('id');
+        Route::delete('{id}', [App\Http\Controllers\Api\Contract\ContractController::class, 'destroy'])->whereNumber('id');
         Route::apiResource('types', App\Http\Controllers\Api\Contract\ContractTypeController::class);
         Route::apiResource('attachments', App\Http\Controllers\Api\Contract\ContractAttachmentController::class);
         Route::apiResource('comments', App\Http\Controllers\Api\Contract\ContractCommentController::class);
@@ -217,11 +229,11 @@ Route::middleware('auth:api')->group(function () {
         
         Route::apiResource('bordereau-claims', App\Http\Controllers\Api\Insurance\InsuranceBordereauClaimController::class);
         
-        Route::apiResource('premiums', App\Http\Controllers\Api\Insurance\InsurancePremiumController::class);
         Route::post('premiums/{enrollmentId}/calculate', [App\Http\Controllers\Api\Insurance\InsurancePremiumController::class, 'calculatePremium']);
         Route::post('premiums/record-payment', [App\Http\Controllers\Api\Insurance\InsurancePremiumController::class, 'recordPayment']);
         Route::get('premiums/{enrollmentId}/payment-history', [App\Http\Controllers\Api\Insurance\InsurancePremiumController::class, 'getPaymentHistory']);
         Route::get('premiums/summary', [App\Http\Controllers\Api\Insurance\InsurancePremiumController::class, 'getSummary']);
+        Route::apiResource('premiums', App\Http\Controllers\Api\Insurance\InsurancePremiumController::class);
         
         Route::get('statistics/overview', [App\Http\Controllers\Api\Insurance\InsuranceStatisticController::class, 'getOverview']);
         Route::get('statistics/claims-trends', [App\Http\Controllers\Api\Insurance\InsuranceStatisticController::class, 'getClaimsTrends']);

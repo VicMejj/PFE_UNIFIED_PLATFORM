@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\Organization;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Controllers\Api\CrudTrait;
-use App\Models\Department;
+use App\Models\Organization\Department;
 use Illuminate\Http\Request;
 use App\Http\Resources\DepartmentResource;
 
@@ -24,7 +24,7 @@ class DepartmentController extends ApiController
     {
         $query = Department::query();
         if ($search = $request->query('search')) {
-            $query->where('name', 'ilike', "%{$search}%");
+            $query->where('name', 'like', "%{$search}%");
         }
         return $this->successResponse(DepartmentResource::collection($query->paginate()));
     }

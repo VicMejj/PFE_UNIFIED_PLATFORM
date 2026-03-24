@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api\Core;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Asset;
+use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
-use App\Traits\CrudTrait;
 
 class AssetController extends ApiController
 {
