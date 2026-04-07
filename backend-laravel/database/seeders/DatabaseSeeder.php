@@ -55,6 +55,7 @@ class DatabaseSeeder extends Seeder
                 'type' => 'admin',
                 'avatar' => 'avatar.png',
                 'lang' => 'en',
+                'email_verified_at' => now(),
                 'is_active' => 1,
                 'created_by' => 1,
             ]

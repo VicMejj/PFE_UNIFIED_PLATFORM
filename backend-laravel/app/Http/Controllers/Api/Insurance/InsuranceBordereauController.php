@@ -106,7 +106,7 @@ class InsuranceBordereauController extends ApiController
         return $this->successResponse($bordereau, 'Bordereau submitted');
     }
 
-    public function validate($id)
+    public function validateBordereau($id)
     {
         $bordereau = InsuranceBordereau::findOrFail($id);
         $bordereau->validate(auth()->id());

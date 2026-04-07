@@ -13,6 +13,14 @@ return new class extends Migration
     {
         Schema::create('contracts', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
+            $table->foreignId('contract_type_id')->nullable()->constrained('contract_types')->onDelete('set null');
+            $table->string('contract_name');
+            $table->date('start_date');
+            $table->date('end_date')->nullable();
+            $table->string('contract_document_path')->nullable();
+            $table->string('status')->default('active');
+            $table->text('notes')->nullable();
             $table->timestamps();
         });
     }

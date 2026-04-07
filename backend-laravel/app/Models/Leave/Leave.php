@@ -5,6 +5,7 @@ namespace App\Models\Leave;
 use App\Models\Employee\Employee;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 
 class Leave extends Model
 {
@@ -14,8 +15,12 @@ class Leave extends Model
         'start_date',
         'end_date',
         'days_requested',
+        'total_days',
+        'approval_probability',
+        'ai_suggestion_score',
         'status',
         'reason',
+        'policy_violations',
         'approved_by',
         'approval_date',
         'rejection_reason'
@@ -24,7 +29,10 @@ class Leave extends Model
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
-        'approval_date' => 'datetime'
+        'approval_date' => 'datetime',
+        'policy_violations' => 'array',
+        'approval_probability' => 'float',
+        'ai_suggestion_score' => 'float',
     ];
 
     public function employee()
@@ -59,18 +67,28 @@ class Leave extends Model
 
     public function approve($userId, $approvalDate = null)
     {
-        $this->update([
+        $updates = [
             'status' => 'approved',
             'approved_by' => $userId,
-            'approval_date' => $approvalDate ?? now()
-        ]);
+        ];
+
+        if (Schema::hasColumn('leaves', 'approval_date')) {
+            $updates['approval_date'] = $approvalDate ?? now();
+        }
+
+        $this->update($updates);
     }
 
     public function reject($rejection_reason)
     {
-        $this->update([
+        $updates = [
             'status' => 'rejected',
-            'rejection_reason' => $rejection_reason
-        ]);
+        ];
+
+        if (Schema::hasColumn('leaves', 'rejection_reason')) {
+            $updates['rejection_reason'] = $rejection_reason;
+        }
+
+        $this->update($updates);
     }
 }

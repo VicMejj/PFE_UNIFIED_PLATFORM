@@ -29,6 +29,12 @@ class EnsureJsonResponse
         $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
         $response->headers->set('API-Version', 'v1');
 
+        // Add CORS headers to allow requests from frontend
+        $response->headers->set('Access-Control-Allow-Origin', '*');
+        $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+        $response->headers->set('Access-Control-Allow-Credentials', 'true');
+
         // Add JWT token info if available
         try {
             if ($token = JWTAuth::getToken()) {

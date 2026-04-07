@@ -1,29 +1,35 @@
-import axios from 'axios'
+import { djangoApi, unwrapResponse } from '@/api/http'
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_DJANGO_API_URL
-})
+export const djangoAiApi = {
+  async predictTurnover(payload) {
+    const response = await djangoApi.post('/ai/turnover/predict/', payload)
+    return unwrapResponse(response)
+  },
 
-// Add token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('django_token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  async getOptimalLeaveDates(payload = {}) {
+    const response = await djangoApi.post('/ai/leave/optimal-dates/', payload)
+    return unwrapResponse(response)
+  },
+
+  async sendChatMessage(message, sessionId, signal) {
+    const response = await djangoApi.post(
+      '/ai/chatbot/message/',
+      {
+        message,
+        session_id: sessionId
+      },
+      signal ? { signal } : undefined
+    )
+    return unwrapResponse(response)
   }
-  return config
-})
-
-export const generateReport = async (employeeId) => {
-  const { data } = await api.get(`/ia_models/reports/${employeeId}`)
-  return data
 }
 
-export const getAnalytics = async (filters) => {
-  const { data } = await api.post('/ia_models/analytics', filters)
-  return data
-}
+// Backward-compatible named exports for any stale modules in the dev graph.
+export const generateReport = async (employeeId) =>
+  djangoAiApi.predictTurnover({ employee_id: employeeId })
 
-export const predictTrends = async (data) => {
-  const { data: response } = await api.post('/ia_models/predict', data)
-  return response
-}
+export const getAnalytics = async (filters) =>
+  djangoAiApi.getOptimalLeaveDates(filters)
+
+export const predictTrends = async (payload) =>
+  djangoAiApi.predictTurnover(payload)

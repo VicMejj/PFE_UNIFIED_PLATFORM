@@ -5,7 +5,11 @@ use Illuminate\Support\Facades\Route;
 // ==================== CORE - Public Auth Endpoints ====================
 Route::prefix('auth')->group(function () {
     Route::post('register', [App\Http\Controllers\Api\Core\AuthController::class, 'register']);
+    Route::post('verify-email-otp', [App\Http\Controllers\Api\Core\AuthController::class, 'verifyEmailOtp']);
+    Route::post('resend-email-otp', [App\Http\Controllers\Api\Core\AuthController::class, 'resendEmailOtp']);
     Route::post('login', [App\Http\Controllers\Api\Core\AuthController::class, 'login']);
+    Route::post('forgot-password', [App\Http\Controllers\Api\Core\AuthController::class, 'forgotPassword']);
+    Route::post('reset-password', [App\Http\Controllers\Api\Core\AuthController::class, 'resetPassword']);
 });
 
 // ==================== Protected Routes (JWT Middleware) ====================
@@ -13,9 +17,13 @@ Route::middleware('auth:api')->group(function () {
     
     // ===== CORE ENDPOINTS =====
     Route::prefix('core')->group(function () {
-        Route::post('auth/logout', [App\Http\Controllers\Api\Core\AuthController::class, 'logout']);
+        Route::match(['get', 'post'], 'auth/logout', [App\Http\Controllers\Api\Core\AuthController::class, 'logout']);
         Route::get('auth/me', [App\Http\Controllers\Api\Core\AuthController::class, 'me']);
         Route::post('auth/refresh', [App\Http\Controllers\Api\Core\AuthController::class, 'refresh']);
+        Route::patch('auth/profile', [App\Http\Controllers\Api\Core\AuthController::class, 'updateProfile']);
+        Route::patch('auth/password', [App\Http\Controllers\Api\Core\AuthController::class, 'updatePassword']);
+        Route::post('auth/avatar', [App\Http\Controllers\Api\Core\AuthController::class, 'updateAvatar']);
+        Route::patch('auth/preferences', [App\Http\Controllers\Api\Core\AuthController::class, 'updatePreferences']);
         
         Route::apiResource('users', App\Http\Controllers\Api\Core\UserController::class);
         Route::apiResource('roles', App\Http\Controllers\Api\Core\RoleController::class);
@@ -27,6 +35,11 @@ Route::middleware('auth:api')->group(function () {
         Route::get('users/{userId}/roles', [App\Http\Controllers\Api\Core\RoleController::class, 'getUserRoles']);
         Route::get('users-by-role/{roleName}', [App\Http\Controllers\Api\Core\RoleController::class, 'getUsersByRole']);
         Route::get('users-with-roles', [App\Http\Controllers\Api\Core\RoleController::class, 'getAllUsersWithRoles']);
+
+        Route::post('users/{id}/suspend', [App\Http\Controllers\Api\Core\UserController::class, 'suspend']);
+        Route::post('users/{id}/ban', [App\Http\Controllers\Api\Core\UserController::class, 'ban']);
+        Route::post('users/{id}/activate', [App\Http\Controllers\Api\Core\UserController::class, 'activate']);
+        Route::post('users/{id}/update-status', [App\Http\Controllers\Api\Core\UserController::class, 'updateStatus']);
         
         Route::apiResource('settings', App\Http\Controllers\Api\Core\SettingController::class);
         Route::apiResource('languages', App\Http\Controllers\Api\Core\LanguageController::class);
@@ -49,6 +62,7 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('{id}', [App\Http\Controllers\Api\Employee\EmployeeController::class, 'destroy'])->whereNumber('id');
         Route::get('{id}/turnover-prediction', [App\Http\Controllers\Api\Employee\EmployeeController::class, 'getTurnoverPrediction']);
         Route::get('{id}/statistics', [App\Http\Controllers\Api\Employee\EmployeeController::class, 'getStatistics']);
+        Route::get('{id}/benefit-recommendations', [App\Http\Controllers\Api\Payroll\BenefitRecommendationController::class, 'recommend']);
         
         Route::apiResource('documents', App\Http\Controllers\Api\Employee\DocumentController::class);
         Route::apiResource('employee-documents', App\Http\Controllers\Api\Employee\EmployeeDocumentController::class);
@@ -77,6 +91,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('{id}/approve-by-manager', [App\Http\Controllers\Api\Leave\LeaveController::class, 'approveByManager']);
         Route::post('{id}/approve-by-hr', [App\Http\Controllers\Api\Leave\LeaveController::class, 'approveByHR']);
         Route::post('{id}/reject', [App\Http\Controllers\Api\Leave\LeaveController::class, 'reject']);
+        Route::post('request-insights', [App\Http\Controllers\Api\Leave\LeaveController::class, 'requestInsights']);
         Route::get('optimal-dates', [App\Http\Controllers\Api\Leave\LeaveController::class, 'getOptimalDates']);
         
         Route::apiResource('types', App\Http\Controllers\Api\Leave\LeaveTypeController::class);
@@ -93,6 +108,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('pay-slips/{id}/download-pdf', [App\Http\Controllers\Api\Payroll\PaySlipController::class, 'downloadPDF']);
         
         Route::apiResource('allowances', App\Http\Controllers\Api\Payroll\AllowanceController::class);
+        Route::apiResource('allowance-options', App\Http\Controllers\Api\Payroll\AllowanceOptionController::class);
         Route::apiResource('commissions', App\Http\Controllers\Api\Payroll\CommissionController::class);
         Route::apiResource('loans', App\Http\Controllers\Api\Payroll\LoanController::class);
         Route::post('loans/{id}/assess-risk', [App\Http\Controllers\Api\Payroll\LoanController::class, 'assessRisk']);
@@ -169,11 +185,22 @@ Route::middleware('auth:api')->group(function () {
         Route::get('{id}', [App\Http\Controllers\Api\Contract\ContractController::class, 'show'])->whereNumber('id');
         Route::match(['put', 'patch'], '{id}', [App\Http\Controllers\Api\Contract\ContractController::class, 'update'])->whereNumber('id');
         Route::delete('{id}', [App\Http\Controllers\Api\Contract\ContractController::class, 'destroy'])->whereNumber('id');
+        Route::post('{id}/assign', [App\Http\Controllers\Api\Contract\ContractController::class, 'assign'])->whereNumber('id');
+        Route::post('{id}/view', [App\Http\Controllers\Api\Contract\ContractController::class, 'markViewed'])->whereNumber('id');
+        Route::post('sign-with-token', [App\Http\Controllers\Api\Contract\ContractController::class, 'signWithToken']);
+        Route::post('{id}/reject', [App\Http\Controllers\Api\Contract\ContractController::class, 'reject'])->whereNumber('id');
+        Route::get('{id}/audit', [App\Http\Controllers\Api\Contract\ContractController::class, 'auditLog'])->whereNumber('id');
+        Route::get('{id}/download', [App\Http\Controllers\Api\Contract\ContractController::class, 'download'])->whereNumber('id');
         Route::apiResource('types', App\Http\Controllers\Api\Contract\ContractTypeController::class);
         Route::apiResource('attachments', App\Http\Controllers\Api\Contract\ContractAttachmentController::class);
         Route::apiResource('comments', App\Http\Controllers\Api\Contract\ContractCommentController::class);
         Route::apiResource('notes', App\Http\Controllers\Api\Contract\ContractNoteController::class);
     });
+
+    Route::get('notifications/unread-count', [App\Http\Controllers\Api\Web\NotificationController::class, 'unreadCount']);
+    Route::post('notifications/{id}/mark-read', [App\Http\Controllers\Api\Web\NotificationController::class, 'markRead'])->whereNumber('id');
+    Route::post('notifications/mark-all-read', [App\Http\Controllers\Api\Web\NotificationController::class, 'markAllRead']);
+    Route::get('notifications', [App\Http\Controllers\Api\Web\NotificationController::class, 'index']);
 
     // ===== BILLING ENDPOINTS =====
     Route::prefix('billing')->group(function () {
@@ -223,7 +250,7 @@ Route::middleware('auth:api')->group(function () {
         Route::apiResource('bordereaux', App\Http\Controllers\Api\Insurance\InsuranceBordereauController::class);
         Route::post('bordereaux/{id}/add-claims', [App\Http\Controllers\Api\Insurance\InsuranceBordereauController::class, 'addClaims']);
         Route::post('bordereaux/{id}/submit', [App\Http\Controllers\Api\Insurance\InsuranceBordereauController::class, 'submit']);
-        Route::post('bordereaux/{id}/validate', [App\Http\Controllers\Api\Insurance\InsuranceBordereauController::class, 'validate']);
+        Route::post('bordereaux/{id}/validate', [App\Http\Controllers\Api\Insurance\InsuranceBordereauController::class, 'validateBordereau']);
         Route::post('bordereaux/{id}/mark-as-paid', [App\Http\Controllers\Api\Insurance\InsuranceBordereauController::class, 'markAsPaid']);
         Route::get('bordereaux/{id}/download-pdf', [App\Http\Controllers\Api\Insurance\InsuranceBordereauController::class, 'downloadPDF']);
         

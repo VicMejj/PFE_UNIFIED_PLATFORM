@@ -15,12 +15,26 @@ class Contract extends Model
         'end_date',
         'contract_document_path',
         'status',
+        'verification_token',
+        'verification_code',
+        'token_expires_at',
+        'signing_deadline',
+        'viewed_at',
+        'signed_at',
+        'rejected_at',
+        'rejection_reason',
+        'signed_ip',
         'notes'
     ];
 
     protected $casts = [
         'start_date' => 'date',
-        'end_date' => 'date'
+        'end_date' => 'date',
+        'token_expires_at' => 'datetime',
+        'signing_deadline' => 'datetime',
+        'viewed_at' => 'datetime',
+        'signed_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
     public function employee()
@@ -46,6 +60,11 @@ class Contract extends Model
     public function notes()
     {
         return $this->hasMany(ContractNote::class);
+    }
+
+    public function auditLogs()
+    {
+        return $this->hasMany(ContractAuditLog::class);
     }
 
     public function scopeActive($query)

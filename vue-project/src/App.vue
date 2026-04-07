@@ -1,79 +1,35 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { RouterView } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import ChatBot from '@/components/common/ChatBot.vue'
+import GlobalLoadingOverlay from '@/components/common/GlobalLoadingOverlay.vue'
 
-const router = useRouter()
+const auth = useAuthStore()
 
-const user = computed(() => {
-  const stored = localStorage.getItem('user')
-  return stored ? JSON.parse(stored) : null
+// Track if auth is being initialized
+const isInitializing = ref(true)
+
+// Get user from auth store (normalized with proper role mapping)
+const user = computed(() => auth.user)
+
+// Show loading overlay during initial auth check
+const showLoading = computed(() => isInitializing.value && !!auth.laravelToken)
+
+onMounted(async () => {
+  // Initialize auth state from stored token
+  await auth.initializeAuth()
+  isInitializing.value = false
 })
-
-const logout = () => {
-  localStorage.removeItem('token')
-  localStorage.removeItem('user')
-  router.push('/login')
-}
 </script>
 
 <template>
-  <header v-if="user">
-    <div class="wrapper">
-      <div class="app-header">
-        <h1>HR Management System</h1>
-      </div>
+  <!-- Global loading overlay for initial auth and route transitions -->
+  <GlobalLoadingOverlay :is-visible="showLoading" />
 
-      <nav>
-        <!-- COMMON -->
-        <RouterLink to="/">Dashboard</RouterLink>
+  <!-- Main app content -->
+  <RouterView />
 
-        <!-- ADMIN -->
-        <RouterLink v-if="user.role === 'admin'" to="/admin">
-          Admin
-        </RouterLink>
-
-        <!-- RH MANAGER -->
-        <RouterLink v-if="user.role === 'rh_manager'" to="/rh">
-          RH
-        </RouterLink>
-
-        <!-- EMPLOYEE -->
-        <RouterLink v-if="user.role === 'employee'" to="/employee">
-          My Space
-        </RouterLink>
-
-        <button @click="logout" class="logout">Logout</button>
-      </nav>
-    </div>
-  </header>
-
-  <main>
-    <RouterView />
-  </main>
+  <!-- Show Chatbot only for administrative roles -->
+  <ChatBot v-if="user && ['admin', 'rh_manager', 'manager'].includes(user.role)" />
 </template>
-
-<style scoped>
-header {
-  @apply bg-white shadow-md;
-}
-
-.wrapper {
-  @apply container mx-auto px-4 py-4 flex items-center justify-between;
-}
-
-nav {
-  @apply flex gap-4 items-center;
-}
-
-nav a {
-  @apply px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100;
-}
-
-nav a.router-link-exact-active {
-  @apply bg-blue-100 text-blue-700 font-medium;
-}
-
-.logout {
-  @apply px-3 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200;
-}
-</style>

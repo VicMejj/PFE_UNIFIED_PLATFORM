@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\URL;
 use Spatie\Permission\Traits\HasRoles;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 
@@ -26,15 +27,33 @@ class User extends Authenticatable implements JWTSubject
 
     protected $hidden = ['password', 'remember_token', 'google2fa_secret'];
 
+    protected $appends = ['avatar_url'];
+
     protected $casts = [
         'email_verified_at' => 'datetime',
         'last_login' => 'datetime',
         'storage_limit' => 'float',
+        'is_active' => 'boolean',
+        'active_status' => 'boolean',
+        'is_disable' => 'boolean',
+        'dark_mode' => 'boolean',
     ];
 
     public function employees()
     {
         return $this->hasMany(Employee::class);
+    }
+
+    public function hasVerifiedEmail(): bool
+    {
+        return ! is_null($this->email_verified_at);
+    }
+
+    public function markEmailAsVerified(): bool
+    {
+        return $this->forceFill([
+            'email_verified_at' => $this->freshTimestamp(),
+        ])->save();
     }
 
     // convenience helpers
@@ -61,5 +80,18 @@ class User extends Authenticatable implements JWTSubject
     public function getJWTCustomClaims()
     {
         return [];
+    }
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        if (! $this->avatar) {
+            return null;
+        }
+
+        if (str_starts_with($this->avatar, 'http://') || str_starts_with($this->avatar, 'https://')) {
+            return $this->avatar;
+        }
+
+        return URL::to('/').'/'.ltrim($this->avatar, '/');
     }
 }

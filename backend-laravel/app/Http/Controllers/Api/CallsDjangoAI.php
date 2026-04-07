@@ -28,7 +28,10 @@ trait CallsDjangoAI
     protected function forwardDjangoResponse(\Illuminate\Http\Client\Response $response)
     {
         if ($response->successful()) {
-            return $this->successResponse($response->json());
+            return $this->successResponse(
+                $response->json('data') ?? $response->json(),
+                $response->json('message')
+            );
         }
 
         return response()->json([

@@ -1,66 +1,126 @@
-import axios from 'axios'
+import { laravelApi } from '@/api/http'
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_LARAVEL_API_URL + '/v1',
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
+/**
+ * Extract data from Laravel's standardized response envelope.
+ * Laravel returns: { success: true, data: {...}, message: '...', timestamp: '...' }
+ * Frontend expects: { token, user, roles, permissions, ... }
+ */
+function unwrapResponse(response: any) {
+  // If response has the Laravel envelope, extract the data
+  if (response.data && response.data.data !== undefined) {
+    return response.data.data
   }
-})
-
-// Add token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('laravel_token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
-// Handle response errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('laravel_token')
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
-)
+  // Otherwise return the raw data
+  return response.data
+}
 
 export default {
   async login(email: string, password: string) {
-    const response = await api.post('/login', {
+    const response = await laravelApi.post('/auth/login', {
       email,
       password
     })
-    if (response.data.token) {
-      localStorage.setItem('laravel_token', response.data.token)
+    const data = unwrapResponse(response)
+    if (data.token) {
+      localStorage.setItem('laravel_token', data.token)
     }
-    return response.data
+    return data
   },
 
-  async register(email: string, password: string, firstName: string, lastName: string) {
-    const response = await api.post('/register', {
+  async register(name: string, email: string, password: string) {
+    const response = await laravelApi.post('/auth/register', {
+      name,
       email,
       password,
-      firstName,
-      lastName
+      password_confirmation: password // Laravel requires this field since rule is 'confirmed'
     })
-    if (response.data.token) {
-      localStorage.setItem('laravel_token', response.data.token)
+    return unwrapResponse(response)
+  },
+
+  async verifyEmailOtp(email: string, otp: string) {
+    const response = await laravelApi.post('/auth/verify-email-otp', {
+      email,
+      otp
+    })
+    const data = unwrapResponse(response)
+    if (data.token) {
+      localStorage.setItem('laravel_token', data.token)
     }
-    return response.data
+    return data
+  },
+
+  async resendEmailOtp(email: string) {
+    const response = await laravelApi.post('/auth/resend-email-otp', { email })
+    return unwrapResponse(response)
+  },
+
+  async forgotPassword(email: string) {
+    const response = await laravelApi.post('/auth/forgot-password', { email })
+    return unwrapResponse(response)
+  },
+
+  async resetPassword(email: string, otp: string, password: string, passwordConfirmation: string) {
+    const response = await laravelApi.post('/auth/reset-password', {
+      email,
+      otp,
+      password,
+      password_confirmation: passwordConfirmation
+    })
+    return unwrapResponse(response)
   },
 
   async logout() {
-    localStorage.removeItem('laravel_token')
-    return api.post('/logout')
+    try {
+      const response = await laravelApi.post('/core/auth/logout')
+      return unwrapResponse(response)
+    } finally {
+      localStorage.removeItem('laravel_token')
+    }
   },
 
   async me() {
-    const response = await api.get('/me')
-    return response.data
+    const response = await laravelApi.get('/core/auth/me')
+    return unwrapResponse(response)
+  },
+
+  async refresh() {
+    const response = await laravelApi.post('/core/auth/refresh')
+    const data = unwrapResponse(response)
+    if (data.token) {
+      localStorage.setItem('laravel_token', data.token)
+    }
+    return data
+  },
+
+  async updateProfile(payload: { name?: string; email?: string; lang?: string }) {
+    const response = await laravelApi.patch('/core/auth/profile', payload)
+    return unwrapResponse(response)
+  },
+
+  async updatePassword(payload: {
+    current_password: string
+    password: string
+    password_confirmation: string
+  }) {
+    const response = await laravelApi.patch('/core/auth/password', payload)
+    return unwrapResponse(response)
+  },
+
+  async updateAvatar(file: File) {
+    const formData = new FormData()
+    formData.append('avatar', file)
+
+    const response = await laravelApi.post('/core/auth/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+
+    return unwrapResponse(response)
+  },
+
+  async updatePreferences(payload: { dark_mode?: boolean; lang?: string; messenger_color?: string }) {
+    const response = await laravelApi.patch('/core/auth/preferences', payload)
+    return unwrapResponse(response)
   }
 }

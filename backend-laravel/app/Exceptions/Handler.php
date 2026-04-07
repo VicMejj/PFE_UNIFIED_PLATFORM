@@ -130,24 +130,11 @@ class Handler extends ExceptionHandler
             ], Response::HTTP_UNAUTHORIZED);
         }
 
-        // Handle generic exceptions
-        if (env('APP_DEBUG')) {
-            // In debug mode, show actual error
-            return response()->json([
-                'success' => false,
-                'message' => $exception->getMessage() ?: 'Internal server error',
-                'file' => $exception->getFile(),
-                'line' => $exception->getLine(),
-                'trace' => $exception->getTrace(),
-                'timestamp' => now()->toIso8601String(),
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
-        } else {
-            // In production, hide error details
-            return response()->json([
-                'success' => false,
-                'message' => 'Internal server error',
-                'timestamp' => now()->toIso8601String(),
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
+        // Handle generic exceptions without leaking raw debug/database details to the frontend
+        return response()->json([
+            'success' => false,
+            'message' => 'Something went wrong. Please try again.',
+            'timestamp' => now()->toIso8601String(),
+        ], Response::HTTP_INTERNAL_SERVER_ERROR);
     }
 }

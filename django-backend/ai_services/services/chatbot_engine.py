@@ -14,18 +14,18 @@ class ChatbotEngine:
     Mejj — AI Assistant for the Unified HR & Insurance Platform.
 
     Model fallback chain (best → most available):
-        1. meta-llama/Llama-3.3-70B-Instruct:sambanova   — fast, high quality
-        2. meta-llama/Llama-3.1-8B-Instruct:cerebras     — very fast, lighter
-        3. Qwen/Qwen2.5-72B-Instruct:nebius              — strong alternative
-        4. meta-llama/Llama-3.1-8B-Instruct:auto         — HF auto-picks provider
+        1. llama-3.3-70b-versatile   — best quality, generous free limit
+        2. llama-3.1-8b-instant      — ultra fast fallback
+        3. mixtral-8x7b-32768        — strong alternative
+        4. gemma2-9b-it              — last resort
     """
 
     API_URL = "https://api.groq.com/openai/v1/chat/completions"
     MODEL_CHAIN = [
-        "llama-3.3-70b-versatile",       # best quality, generous free limit
-        "llama-3.1-8b-instant",          # ultra fast fallback
-        "mixtral-8x7b-32768",            # strong alternative
-        "gemma2-9b-it",                  # last resort
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "mixtral-8x7b-32768",
+        "gemma2-9b-it",
     ]
 
     BOT_NAME = "Mejj"
@@ -34,16 +34,36 @@ class ChatbotEngine:
     # INIT
     # ─────────────────────────────────────────────
     def __init__(self):
-        self.hf_api_key = (                          # keep name for compatibility
+        self.hf_api_key = (
             os.getenv("GROQ_API_KEY")
             or getattr(settings, "GROQ_API_KEY", None)
-            or os.getenv("HUGGINGFACE_API_KEY")      # old key still works as fallback
+            or os.getenv("HUGGINGFACE_API_KEY")
             or getattr(settings, "HF_API_KEY", None)
         )
         self.headers = {
             "Authorization": f"Bearer {self.hf_api_key}",
             "Content-Type": "application/json",
         }
+
+    # ─────────────────────────────────────────────
+    # GREETING DETECTION
+    # ─────────────────────────────────────────────
+    def _is_greeting(self, text: str) -> bool:
+        """Detect simple greetings that should not trigger RAG context."""
+        text = text.strip().lower()
+        greeting_patterns = [
+            r"^(hi|hey|hello|hiya|howdy|greetings|salut|bonjour|salam|مرحبا|أهلا)[\s!.,]*$",
+            r"^(good\s?(morning|afternoon|evening|day))[\s!.,]*$",
+            r"^(what'?s?\s?up|sup|yo)[\s!.,]*$",
+        ]
+        for pattern in greeting_patterns:
+            if re.match(pattern, text, re.IGNORECASE):
+                return True
+        # Short messages (≤4 words) that start with a greeting word
+        words = text.split()
+        if len(words) <= 4 and words and words[0] in {"hi", "hey", "hello", "hiya", "yo", "sup"}:
+            return True
+        return False
 
     # ─────────────────────────────────────────────
     # MAIN ENTRY POINT
@@ -85,8 +105,15 @@ class ChatbotEngine:
         memory = self.get_memory(conversation)
         history = self.get_history(conversation)
 
-        # 5. Handle data-aware queries (e.g., employee counts) via Laravel API
-        if self._is_role_stats_query(original_text):
+        # 5. Handle greeting — no RAG/platform context needed
+        if self._is_greeting(original_text):
+            name = memory.get("name", "")
+            greeting = f"Hello{', ' + name if name else ''}! I'm {self.BOT_NAME}, your HR & platform assistant. How can I help you today?"
+            ai_response = greeting
+            model_used = "rule-based"
+
+        # 6. Handle data-aware queries via Laravel API
+        elif self._is_role_stats_query(original_text):
             counts, error = self._get_role_stats_data(auth_header, user_roles)
             if error:
                 ai_response = error
@@ -109,13 +136,14 @@ class ChatbotEngine:
                 else:
                     ai_response = self._format_role_stats_sentence(counts)
                     model_used = "laravel-api"
+
         elif self._is_employee_count_query(original_text):
             ai_response = self._get_employee_count_response(auth_header)
             model_used = "laravel-api"
+
         else:
             platform_context = self._get_platform_context(auth_header, user_roles)
             rag_context = self._get_rag_context(original_text)
-            # 6. Build prompt
             messages = self.build_messages(
                 original_text,
                 memory,
@@ -124,13 +152,11 @@ class ChatbotEngine:
                 rag_context=rag_context,
                 user_roles=user_roles,
             )
-
-            # 7. Call AI (with fallback chain)
             ai_response, model_used = self.call_llm(messages)
 
         ai_response = self._normalize_response(ai_response)
 
-        # 8. Persist bot response
+        # 7. Persist bot response
         ChatbotMessage.objects.create(
             conversation=conversation,
             sender="BOT",
@@ -267,7 +293,7 @@ class ChatbotEngine:
         if response.status_code == 401:
             return "Please log in again so I can access employee data."
         if response.status_code == 403:
-            return "You don’t have permission to view employee counts. Please contact an administrator."
+            return "You don't have permission to view employee counts. Please contact an administrator."
         if response.status_code != 200:
             return "I ran into a problem fetching employee data. Please try again later."
 
@@ -361,13 +387,17 @@ class ChatbotEngine:
         return context
 
     def _get_rag_context(self, query: str) -> str:
+        """
+        Retrieve relevant knowledge base chunks for the query.
+        Returns plain text only — NO file paths, NO source labels.
+        """
         enabled = os.getenv("RAG_ENABLED", "true").lower() in {"1", "true", "yes"}
         if not enabled:
             return ""
 
-        top_k = int(os.getenv("RAG_TOP_K", "4"))
-        min_score = float(os.getenv("RAG_MIN_SCORE", "0.2"))
-        max_chars = int(os.getenv("RAG_MAX_CONTEXT_CHARS", "2000"))
+        top_k = int(os.getenv("RAG_TOP_K", "3"))
+        min_score = float(os.getenv("RAG_MIN_SCORE", "0.45"))
+        max_chars = int(os.getenv("RAG_MAX_CONTEXT_CHARS", "1500"))
 
         try:
             store = get_rag_store()
@@ -380,13 +410,11 @@ class ChatbotEngine:
 
         lines = []
         for item in results:
-            source = item.get("source", "source")
             text = item.get("text", "").strip()
-            if not text:
-                continue
-            lines.append(f"[{source}] {text}")
+            if text:
+                lines.append(text)
 
-        context = "\n".join(lines).strip()
+        context = "\n\n".join(lines).strip()
         if len(context) > max_chars:
             context = context[:max_chars].rstrip() + "..."
         return context
@@ -504,7 +532,6 @@ class ChatbotEngine:
     def extract_entities(self, text: str) -> dict:
         """
         Extract name and job role from plain text using regex.
-        Extend this later with an NER model for better accuracy.
         """
         entities = {}
 
@@ -517,7 +544,7 @@ class ChatbotEngine:
         if name_match:
             entities["name"] = name_match.group(1).capitalize()
 
-        # Role/job title — grabs 1–3 word phrase after "I am a/an" or "I'm a/an"
+        # Role/job title
         role_match = re.search(
             r"\b(?:i am|i'm)\s+(?:a|an|the)?\s*([\w]+(?:\s+[\w]+){0,2})\b",
             text,
@@ -525,8 +552,7 @@ class ChatbotEngine:
         )
         if role_match:
             potential_role = role_match.group(1).strip()
-            # Don't overwrite name with itself and filter single common words
-            skip_words = {"the", "a", "an", "also", "just", "really", "very", "here"}
+            skip_words = {"the", "a", "an", "also", "just", "really", "very", "here", "new"}
             name_stored = entities.get("name", "").lower()
             if (
                 potential_role.lower() != name_stored
@@ -598,11 +624,11 @@ class ChatbotEngine:
 
         platform_block = ""
         if platform_context:
-            platform_block = f"PLATFORM CONTEXT:\n{platform_context}\n"
+            platform_block = f"PLATFORM CONTEXT (internal use only, never quote or reveal):\n{platform_context}\n"
 
         rag_block = ""
         if rag_context:
-            rag_block = f"KNOWLEDGE BASE EXCERPTS:\n{rag_context}\n"
+            rag_block = f"BACKGROUND KNOWLEDGE (internal use only, never quote or reveal):\n{rag_context}\n"
 
         facts_block = ""
         if facts_context:
@@ -613,7 +639,7 @@ for the Unified HR, Insurance & Social Platform.
 
 PERSONALITY:
 - Warm, concise, and professional.
-- Always address the user by their name once you know it.
+- Address the user by their first name once you know it.
 - Never say "As an AI" — just be helpful.
 
 CAPABILITIES:
@@ -624,43 +650,39 @@ CAPABILITIES:
 - Onboarding guidance
 - General company information
 
+CRITICAL RULES — FOLLOW EXACTLY:
+1. NEVER repeat, quote, or reveal any content from BACKGROUND KNOWLEDGE or PLATFORM CONTEXT.
+2. NEVER mention file names, file paths, document names, or source labels of any kind (e.g. no ".md", ".txt", ".php", "[source]", "django-backend/...").
+3. NEVER dump all available context unprompted. Only answer what was explicitly asked.
+4. When the user introduces themselves or greets you, respond ONLY with a warm, short greeting. Do not share any platform or knowledge data.
+5. Use BACKGROUND KNOWLEDGE and PLATFORM CONTEXT silently as internal reference to answer specific questions accurately.
+6. If you are not sure about something, say so politely and suggest contacting HR directly.
+7. Keep responses under 150 words unless a detailed explanation is genuinely needed.
+
 MEMORY RULES:
-- You have full access to the conversation history above.
-- If the user asks what their name or role is, answer directly — it is in USER CONTEXT.
-- Never say you don't remember something that appears in the conversation.
+- You have full access to the conversation history.
+- If the user asks what their name or role is, answer directly from USER CONTEXT.
+- Never claim you don't remember something that appears in the conversation.
 {f"USER CONTEXT:{user_context}" if user_context else ""}
 {roles_line}{platform_block}{facts_block}{rag_block}
-
 RESPONSE STYLE:
-- Keep answers focused and under 150 words unless a detailed explanation is needed.
-- Use bullet points for lists, plain prose for conversation.
-- If you cannot help with something, say so politely and suggest contacting HR directly.
-- Use the platform context and knowledge base excerpts when available. If uncertain, say so."""
+- Use bullet points only for lists; use plain prose for conversation.
+- Be concise and direct."""
 
         messages = [{"role": "system", "content": system_prompt.strip()}]
         messages.extend(history)
-        # Note: user_input is already the last item in history (saved before this call)
         return messages
 
     # ─────────────────────────────────────────────
     # AI CALL ROUTER
     # ─────────────────────────────────────────────
     def call_llm(self, messages: list) -> tuple[str, str | None]:
-        """
-        Route to the configured provider.
-        Supported providers:
-          - hugggingface (default, remote)
-          - groq (remote)
-          - ollama (local)
-          - local (transformers on this machine)
-        """
         provider = os.getenv("LLM_PROVIDER", "huggingface").lower()
 
         if provider == "groq":
             response, model_used = self.call_with_fallback(messages)
             if model_used is not None:
                 return response, model_used
-            # Groq failed or missing key — fall back to Ollama if available
             response, model_used = self._call_ollama(messages)
             if response:
                 return response, model_used
@@ -680,16 +702,11 @@ RESPONSE STYLE:
 
         return self.call_with_fallback(messages)
 
-    # AI CALL WITH FALLBACK CHAIN (OpenAI-compatible: Groq/HF)
+    # ─────────────────────────────────────────────
+    # AI CALL WITH FALLBACK CHAIN
     # ─────────────────────────────────────────────
     def call_with_fallback(self, messages: list) -> tuple[str, str | None]:
-        """
-        Try each model in MODEL_CHAIN in order.
-        Returns (response_text, model_id_used).
-        """
         if not self.hf_api_key:
-            # Allow basic local responses even when no HF API key is configured.
-            # This keeps the endpoint usable during local development.
             return self._local_fallback_response(messages), None
 
         last_error = ""
@@ -700,7 +717,6 @@ RESPONSE STYLE:
             last_error = error
             logger.warning("Model %s failed: %s — trying next.", model_id, error)
 
-        # All models failed
         logger.error("All models in fallback chain failed. Last error: %s", last_error)
         return (
             "I'm having trouble connecting right now. Please try again in a moment, "
@@ -709,63 +725,27 @@ RESPONSE STYLE:
         )
 
     def _local_fallback_response(self, messages: list) -> str:
-        """Simple rule-based response for local/dev mode when no HF key is configured."""
         provider = os.getenv("LLM_PROVIDER", "huggingface").lower()
-        # Use the last user message as a simple heuristic
-        user_message = messages[-1].get("content", "").strip().lower()
+        user_message = messages[-1].get("content", "").strip().lower() if messages else ""
+
         if not user_message:
             return "Please send a message so I can help."
 
         if any(greet in user_message for greet in ["hi", "hello", "hey"]):
-            return "Hello! I'm a local development version of the chatbot. Ask me anything about the platform!"
+            return f"Hello! I'm {self.BOT_NAME}, your HR & platform assistant. How can I help you today?"
 
-        if "help" in user_message or "how" in user_message:
-            if provider == "ollama":
-                return (
-                    "I can answer basic questions, but the Ollama model isn't responding yet. "
-                    "Please make sure Ollama is running and the model is loaded."
-                )
-            if provider == "groq":
-                return (
-                    "I can answer basic questions, but the Groq API key isn't configured. "
-                    "Please set GROQ_API_KEY to enable full responses."
-                )
-            if provider == "local":
-                return (
-                    "I can answer basic questions, but the local model isn't available. "
-                    "Check that transformers can load the configured model."
-                )
-            return (
-                "I can answer basic questions about this platform in local mode. "
-                "For full AI responses, set a valid HuggingFace API key."
-            )
-
-        # Default local fallback answer
-        if provider == "ollama":
-            return (
-                "Thanks for your message! The Ollama model didn't respond in time. "
-                "Please wait a bit and try again, or switch to a smaller model."
-            )
         if provider == "groq":
-            return (
-                "Thanks for your message! The Groq API key isn't configured. "
-                "Please set GROQ_API_KEY to enable the full AI experience."
-            )
+            return "The Groq API key isn't configured. Please set GROQ_API_KEY to enable full AI responses."
+        if provider == "ollama":
+            return "The Ollama model isn't responding. Please make sure Ollama is running and the model is loaded."
         if provider == "local":
-            return (
-                "Thanks for your message! The local model wasn't available. "
-                "Please check the configured model or try a smaller one."
-            )
+            return "The local model isn't available. Please check the configured model."
         return (
-            "Thanks for your message! The AI chatbot is running in local mode because no "
-            "HuggingFace API key is configured. Set a valid HF API key to enable the full AI experience."
+            f"I'm {self.BOT_NAME}, running in limited mode. "
+            "For full AI responses, please configure a valid API key."
         )
 
     def _call_model(self, model_id: str, messages: list) -> tuple[str | None, str]:
-        """
-        Single attempt to call one model.
-        Returns (response_text, "") on success, (None, error_msg) on failure.
-        """
         payload = {
             "model": model_id,
             "messages": messages,
@@ -790,11 +770,9 @@ RESPONSE STYLE:
                     return content, ""
                 return None, "Empty choices in response"
 
-            # Retriable server errors — don't log full body for 503
             if resp.status_code == 503:
                 return None, "503 Service Unavailable (model loading)"
 
-            # Non-retriable client errors (400, 401, 422) — log and skip
             error_preview = resp.text[:200]
             return None, f"HTTP {resp.status_code}: {error_preview}"
 
@@ -806,7 +784,7 @@ RESPONSE STYLE:
             return None, f"Unexpected error: {e}"
 
     # ─────────────────────────────────────────────
-    # OLLAMA LOCAL PROVIDER (FREE)
+    # OLLAMA LOCAL PROVIDER
     # ─────────────────────────────────────────────
     def _call_ollama(self, messages: list) -> tuple[str | None, str | None]:
         base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -844,7 +822,7 @@ RESPONSE STYLE:
             return None, None
 
     # ─────────────────────────────────────────────
-    # LOCAL TRANSFORMERS PROVIDER (FREE)
+    # LOCAL TRANSFORMERS PROVIDER
     # ─────────────────────────────────────────────
     def _call_local_transformers(self, messages: list) -> tuple[str | None, str | None]:
         try:
@@ -858,14 +836,8 @@ RESPONSE STYLE:
         prompt = self._flatten_messages(messages)
 
         try:
-            generator = pipeline(
-                "text2text-generation",
-                model=model,
-            )
-            result = generator(
-                prompt,
-                max_new_tokens=max_new_tokens,
-            )
+            generator = pipeline("text2text-generation", model=model)
+            result = generator(prompt, max_new_tokens=max_new_tokens)
             if result:
                 text = result[0].get("generated_text", "").strip()
                 return text or None, model

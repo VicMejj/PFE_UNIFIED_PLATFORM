@@ -25,12 +25,16 @@ def _repo_root() -> str:
 
 
 def _default_sources() -> List[str]:
-    root = _repo_root()
+    """
+    Only index curated knowledge base files inside ai_services/knowledge/.
+    Do NOT index arbitrary project files (routes, backend code, etc.)
+    to avoid leaking internal file paths into RAG context.
+    """
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    knowledge_dir = os.path.join(base_dir, "knowledge")
     return [
-        os.path.join(root, "*.md"),
-        os.path.join(root, "*.txt"),
-        os.path.join(root, "backend-laravel", "routes", "api.php"),
-        os.path.join(root, "django-backend", "ai_services", "knowledge", "*.md"),
+        os.path.join(knowledge_dir, "*.md"),
+        os.path.join(knowledge_dir, "*.txt"),
     ]
 
 
@@ -106,10 +110,21 @@ def _chunk_text(text: str, chunk_size: int, overlap: int) -> List[str]:
     return [c for c in chunks if c]
 
 
+def _friendly_source_name(path: str) -> str:
+    """
+    Convert a file path to a clean, friendly topic label.
+    e.g. 'leave_policy.md' → 'leave_policy'
+    This is used internally only and never shown to users.
+    """
+    basename = os.path.basename(path)
+    name, _ = os.path.splitext(basename)
+    return name.replace("_", " ").replace("-", " ").strip()
+
+
 @dataclass
 class RagChunk:
     text: str
-    source: str
+    source: str   # friendly name only, no file paths
 
 
 class RAGStore:
@@ -180,9 +195,10 @@ class RAGStore:
             if not text:
                 continue
 
+            # Use a friendly topic name — never a raw file path
+            friendly_name = _friendly_source_name(path)
             for chunk in _chunk_text(text, chunk_size, overlap):
-                rel_source = os.path.relpath(path, _repo_root())
-                chunks.append(RagChunk(text=chunk, source=rel_source))
+                chunks.append(RagChunk(text=chunk, source=friendly_name))
 
         self.chunks = chunks
         if not self.chunks:
@@ -235,7 +251,7 @@ class RAGStore:
             self.embeddings = None
             self.method = "tfidf"
 
-    def query(self, query_text: str, top_k: int = 4, min_score: float = 0.2) -> List[dict]:
+    def query(self, query_text: str, top_k: int = 3, min_score: float = 0.45) -> List[dict]:
         if not query_text:
             return []
 
@@ -275,7 +291,7 @@ class RAGStore:
             chunk = self.chunks[int(idx)]
             results.append({
                 "text": chunk.text,
-                "source": chunk.source,
+                "source": chunk.source,   # friendly name, safe to log internally
                 "score": score,
             })
         return results

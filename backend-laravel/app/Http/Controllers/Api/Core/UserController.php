@@ -164,4 +164,84 @@ class UserController extends ApiController
 
         return $this->successResponse(null, 'User deleted successfully');
     }
+
+    protected function canManageUsers()
+    {
+        $user = auth()->user()->load('roles');
+        return $user->hasAnyRole(['admin', 'rh', 'manager']);
+    }
+
+    public function suspend($id)
+    {
+        if (! $this->canManageUsers()) {
+            return $this->forbiddenResponse('Only managers, HR, or administrators can suspend users');
+        }
+
+        $user = User::findOrFail($id);
+        $user->is_disable = true;
+        $user->is_active = false;
+        $user->active_status = false;
+        $user->save();
+
+        $user->employees()->update(['is_active' => false]);
+
+        return $this->successResponse($user, 'User suspended successfully');
+    }
+
+    public function ban($id)
+    {
+        if (! $this->canManageUsers()) {
+            return $this->forbiddenResponse('Only managers, HR, or administrators can ban users');
+        }
+
+        $user = User::findOrFail($id);
+        $user->employees()->update(['is_active' => false]);
+
+        // Permanently delete the user and all associated data
+        $user->delete();
+
+        return $this->successResponse(null, 'User banned and permanently deleted successfully');
+    }
+
+    public function activate($id)
+    {
+        if (! $this->canManageUsers()) {
+            return $this->forbiddenResponse('Only managers, HR, or administrators can activate users');
+        }
+
+        $user = User::findOrFail($id);
+        $user->is_disable = false;
+        $user->is_active = true;
+        $user->active_status = true;
+        $user->save();
+
+        $user->employees()->update(['is_active' => true]);
+
+        return $this->successResponse($user, 'User activated successfully');
+    }
+
+    public function updateStatus(Request $request, $id)
+    {
+        if (! $this->canManageUsers()) {
+            return $this->forbiddenResponse('Only managers, HR, or administrators can update user status');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|string|in:active,suspended,banned',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
+        }
+
+        $user = User::findOrFail($id);
+        $status = $request->input('status');
+
+        $user->active_status = $status !== 'active';
+        $user->is_disable = $status !== 'active';
+        $user->is_active = $status === 'active' ? 1 : 0;
+        $user->save();
+
+        return $this->successResponse($user, sprintf('User status set to %s successfully', $status));
+    }
 }

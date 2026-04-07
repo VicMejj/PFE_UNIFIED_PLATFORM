@@ -51,6 +51,11 @@ class EmployeeController extends ApiController
 
     public function store(Request $request)
     {
+        $authUser = auth()->user()?->loadMissing('roles');
+        if ($request->has('roles') && ! $authUser?->hasRole('admin')) {
+            return $this->forbiddenResponse('Only administrators can assign roles while creating an employee profile.');
+        }
+
         $data = $request->validate([
             'user_id' => 'nullable|exists:users,id',
             'name' => 'required|string|max:255',
@@ -76,38 +81,59 @@ class EmployeeController extends ApiController
             'account_type' => 'nullable|integer',
             'salary' => 'nullable|numeric',
             'is_active' => 'nullable|boolean',
+            'roles' => 'nullable|array',
+            'roles.*' => 'string|exists:roles,name',
         ]);
 
-        $employee = DB::transaction(function () use ($data) {
+        $employee = DB::transaction(function () use ($data, $authUser) {
             $data['created_by'] = auth()->id();
+            $hasProvidedPassword = ! empty($data['password']);
             $plainPassword = $data['password'] ?? Str::random(12);
             $hashedPassword = bcrypt($plainPassword);
             $data['password'] = $hashedPassword;
             $data['employee_id'] = $data['employee_id'] ?? 'EMP-'.strtoupper(Str::random(8));
             $data['is_active'] = $data['is_active'] ?? true;
+            $roles = $data['roles'] ?? null;
+            unset($data['roles']);
 
             if (! empty($data['user_id'])) {
                 $user = User::findOrFail($data['user_id']);
             } else {
-                $user = User::create([
-                    'name' => $data['name'],
-                    'email' => $data['email'],
-                    'password' => $hashedPassword,
-                    'type' => 'user',
-                    'avatar' => 'avatars/default.png',
-                    'lang' => 'en',
-                    'created_by' => auth()->id() ?? 'system',
-                ]);
+                $user = User::query()->where('email', $data['email'])->first();
+
+                if (! $user) {
+                    $user = User::create([
+                        'name' => $data['name'],
+                        'email' => $data['email'],
+                        'password' => $hashedPassword,
+                        'type' => 'employee',
+                        'avatar' => 'avatars/default.png',
+                        'lang' => 'en',
+                        'created_by' => auth()->id() ?? 'system',
+                    ]);
+                }
             }
 
             $data['user_id'] = $user->id;
             $employee = Employee::create($data);
 
-            if ($employee->user && $employee->user->email !== $data['email']) {
-                $employee->user->update([
+            if ($employee->user) {
+                $userUpdates = [
                     'name' => $data['name'],
                     'email' => $data['email'],
-                ]);
+                ];
+
+                if ($hasProvidedPassword) {
+                    $userUpdates['password'] = $hashedPassword;
+                }
+
+                $employee->user->update($userUpdates);
+
+                if (is_array($roles) && $authUser?->hasRole('admin')) {
+                    $employee->user->syncRoles($roles);
+                } elseif (! $employee->user->roles()->exists()) {
+                    $employee->user->assignDefaultRole();
+                }
             }
 
             return $employee;

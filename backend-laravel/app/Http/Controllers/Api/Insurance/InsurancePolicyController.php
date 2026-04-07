@@ -96,4 +96,23 @@ class InsurancePolicyController extends ApiController
         $policy->delete();
         return response()->json(null, 204);
     }
+
+    public function getCoverageDetails($id)
+    {
+        $policy = InsurancePolicy::with(['provider', 'coverageLimits'])->findOrFail($id);
+
+        return $this->successResponse([
+            'policy' => $policy,
+            'provider' => $policy->provider,
+            'coverage_limits' => $policy->coverageLimits,
+            'coverage_summary' => [
+                'coverage_amount' => $policy->coverage_amount,
+                'premium_amount' => $policy->premium_amount,
+                'policy_name' => $policy->policy_name,
+                'is_active' => $policy->is_active,
+                'start_date' => $policy->start_date,
+                'end_date' => $policy->end_date,
+            ],
+        ]);
+    }
 }

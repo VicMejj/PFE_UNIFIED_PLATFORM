@@ -4,6 +4,7 @@ from rest_framework import status
 import logging
 import os
 import requests
+from datetime import datetime
 from django.conf import settings
 
 from api.authentication import LaravelJWTAuthentication
@@ -98,6 +99,103 @@ def predict_optimal_leave_dates(request):
         return Response({'success': True, 'data': result, 'user_id': request.user.get('sub')}, status=status.HTTP_200_OK)
     except Exception as e:
         logger.error(f"Leave optimizer error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@authentication_classes([LaravelJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def predict_leave_approval_probability(request):
+    try:
+        payload = request.data
+        total_days = int(payload.get('total_days', 1))
+        base_score = 0.85
+        if total_days > 10:
+            base_score -= 0.2
+        elif total_days > 5:
+            base_score -= 0.1
+
+        if payload.get('leave_type_id') and int(payload['leave_type_id']) == 1:
+            base_score += 0.05
+
+        score = max(0.05, min(0.99, base_score))
+        return Response({'success': True, 'data': {'approval_probability': round(score, 3)}}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Leave approval probability error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@authentication_classes([LaravelJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def recommend_benefits(request):
+    try:
+        employee = request.data.get('employee', {}) or {}
+        benefits = request.data.get('available_benefits', [])
+        tenure = float(employee.get('tenure_months', 0) or 0)
+        performance = float(employee.get('performance_score', 0) or 0)
+        attendance = float(employee.get('attendance_rate', 0) or 0)
+
+        recommendations = []
+        for benefit in benefits:
+            score = 0.15
+            score += min(0.25, tenure / 48)
+            score += min(0.3, performance / 5)
+            score += min(0.2, attendance / 100)
+            if 'wellness' in (benefit.get('name') or '').lower():
+                score += 0.05
+
+            score = round(min(1.0, score), 3)
+            status_text = 'not_eligible'
+            if score >= 0.75:
+                status_text = 'eligible'
+            elif score >= 0.45:
+                status_text = 'nearly_eligible'
+
+            gaps = []
+            if tenure < 24:
+                gaps.append('Reach 24 months tenure')
+            if performance < 4.0:
+                gaps.append('Improve performance score to 4.0+')
+            if attendance < 92:
+                gaps.append('Maintain attendance above 92%')
+
+            recommendations.append({
+                'benefit_id': benefit.get('id'),
+                'eligibility_score': score,
+                'status': status_text,
+                'gap_actions': gaps,
+                'estimated_months_to_qualify': max(0, int((24 - tenure) / 1.25)) if score < 0.75 else 0,
+            })
+
+        recommendations.sort(key=lambda x: x['eligibility_score'], reverse=True)
+        return Response({'success': True, 'data': recommendations}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Benefit recommendation error: {e}")
+        return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@authentication_classes([LaravelJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def dashboard_insights(request):
+    try:
+        insights = {
+            'burnout_risk_employees': [
+                {'employee_id': 3, 'name': 'Montassar Mejri', 'risk_score': 0.78},
+                {'employee_id': 9, 'name': 'Sara Abidine', 'risk_score': 0.71},
+            ],
+            'high_turnover_risk_count': 2,
+            'anomaly_alerts': [
+                {'type': 'attendance', 'message': 'Three days of low attendance detected in sales team.'},
+            ],
+            'low_workload_windows': ['2026-04-14 to 2026-04-18'],
+            'benefit_utilization_rate': 0.67,
+            'sentiment_trend': 'declining',
+        }
+        return Response({'success': True, 'data': insights}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Dashboard insights error: {e}")
         return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -240,3 +338,32 @@ def train_turnover_model(request):
     except Exception as e:
         logger.error(f"Training error: {e}")
         return Response({'success': False, 'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@authentication_classes([LaravelJWTAuthentication])
+@permission_classes([IsAuthenticated])
+def get_notifications(request):
+    user_id = request.user.get('sub') if isinstance(request.user, dict) else None
+    now_iso = datetime.utcnow().isoformat() + 'Z'
+    notifications = [
+        {
+            'id': f'hello-ai-backend-{user_id or "guest"}',
+            'type': 'success',
+            'title': 'Django AI backend is online',
+            'message': 'Your AI services and prediction endpoints are ready to use for leave, turnover, and risk analysis.',
+            'read': False,
+            'created_at': now_iso,
+            'action': '/manager',
+        },
+        {
+            'id': f'leaves-ai-recommendation-{user_id or "guest"}',
+            'type': 'info',
+            'title': 'Leave prediction available',
+            'message': 'Use the leave optimizer to find the best dates for the next team absence.',
+            'read': False,
+            'created_at': now_iso,
+            'action': '/rh/leaves',
+        },
+    ]
+
+    return Response({'success': True, 'data': notifications}, status=status.HTTP_200_OK)
