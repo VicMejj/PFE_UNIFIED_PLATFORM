@@ -2,6 +2,15 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import laravelAuthApi from '@/api/laravel/auth'
 import { initializeTheme } from '@/composables/useTheme'
+import { isNetworkOrServerUnavailable } from '@/api/http'
+import {
+  clearStoredAuth,
+  getRememberMePreference,
+  getStoredUser,
+  getStoredToken,
+  persistAuthSession,
+  persistStoredUser
+} from '@/utils/authStorage'
 
 export interface UserRole {
   id: number
@@ -19,6 +28,7 @@ export interface User {
   id: number
   name: string
   email: string
+  employee_id?: number | null
   email_verified_at: string | null
   avatar: string | null
   avatar_url?: string | null
@@ -93,11 +103,13 @@ function normalizeUser(apiResponse: any): User | null {
   const user = apiResponse.user || null
   const roles = apiResponse.roles || user?.roles?.map((r: UserRole) => r.name) || []
   const permissions = apiResponse.permissions || user?.permissions?.map((p: UserPermission) => p.name) || []
+  const employeeId = apiResponse.employee_id ?? user?.employee_id ?? null
   
   if (!user) return null
   
   return {
     ...user,
+    employee_id: employeeId,
     roles,
     permissions,
     role: mapLaravelRoleToRouteRole(roles), // Primary role for routing
@@ -111,11 +123,29 @@ function resolveThemePreference(darkMode?: boolean | null): 'light' | 'dark' | u
   return undefined
 }
 
+function loadStoredUser(): User | null {
+  const rawUser = getStoredUser()
+  if (!rawUser) return null
+
+  try {
+    return JSON.parse(rawUser) as User
+  } catch {
+    return null
+  }
+}
+
+/** Only drop stored credentials when the server rejected the token — not on 5xx or network errors. */
+function shouldClearSessionOnMeFailure(error: unknown): boolean {
+  const status = (error as { response?: { status?: number } })?.response?.status
+  return status === 401 || status === 403
+}
+
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<User | null>(null)
-  const laravelToken = ref<string | null>(localStorage.getItem('laravel_token'))
+  const user = ref<User | null>(loadStoredUser())
+  const laravelToken = ref<string | null>(getStoredToken())
   const isLoading = ref(false)
   const isInitialized = ref(false)
+  let initializePromise: Promise<void> | null = null
   const isAuthenticated = computed(() => !!laravelToken.value)
   const userRole = computed(() => user.value?.role || null)
 
@@ -124,41 +154,48 @@ export const useAuthStore = defineStore('auth', () => {
    */
   async function initializeAuth() {
     if (isInitialized.value) return
+    if (initializePromise) return initializePromise
     
-    isLoading.value = true
-    try {
-      if (laravelToken.value) {
-        const response = await Promise.race([
-          laravelAuthApi.me(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Auth initialize timeout')), 10000))
-        ]) as MeResponse
+    initializePromise = (async () => {
+      isLoading.value = true
+      try {
+        if (laravelToken.value) {
+          const response = await Promise.race([
+            laravelAuthApi.me(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth initialize timeout')), 10000))
+          ]) as MeResponse
 
-        const normalizedUser = normalizeUser(response)
-        user.value = normalizedUser
-        initializeTheme(resolveThemePreference(normalizedUser?.dark_mode))
-        
-        // Persist normalized user to localStorage
-        if (normalizedUser) {
-          localStorage.setItem('user', JSON.stringify(normalizedUser))
+          const normalizedUser = normalizeUser(response)
+          user.value = normalizedUser
+          initializeTheme(resolveThemePreference(normalizedUser?.dark_mode))
+          
+          if (normalizedUser) {
+            persistStoredUser(normalizedUser)
+          }
         }
+      } catch (error) {
+        if (!isNetworkOrServerUnavailable(error)) {
+          console.error('Auth initialization failed:', error)
+        }
+        if (shouldClearSessionOnMeFailure(error)) {
+          laravelToken.value = null
+          user.value = null
+          clearStoredAuth()
+        }
+      } finally {
+        isLoading.value = false
+        isInitialized.value = true
+        initializePromise = null
       }
-    } catch (error) {
-      console.error('Auth initialization failed:', error)
-      // Clear invalid or expired token so login can proceed
-      laravelToken.value = null
-      user.value = null
-      localStorage.removeItem('laravel_token')
-      localStorage.removeItem('user')
-    } finally {
-      isLoading.value = false
-      isInitialized.value = true
-    }
+    })()
+
+    return initializePromise
   }
 
   /**
    * Login with Laravel backend
    */
-  async function loginLaravel(email: string, password: string): Promise<LoginResponse> {
+  async function loginLaravel(email: string, password: string, rememberMe = false): Promise<LoginResponse> {
     isLoading.value = true
     try {
       const response = await laravelAuthApi.login(email, password) as LoginResponse
@@ -168,10 +205,10 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = normalizedUser
       initializeTheme(resolveThemePreference(normalizedUser?.dark_mode))
       
-      // Persist to localStorage
-      localStorage.setItem('laravel_token', response.token)
       if (normalizedUser) {
-        localStorage.setItem('user', JSON.stringify(normalizedUser))
+        persistAuthSession({ token: response.token, user: normalizedUser, rememberMe })
+      } else {
+        persistAuthSession({ token: response.token, rememberMe })
       }
       
       return { ...response, user: normalizedUser! }
@@ -212,9 +249,11 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = normalizedUser
       initializeTheme(resolveThemePreference(normalizedUser?.dark_mode))
       
-      // Persist to localStorage
-      localStorage.setItem('laravel_token', response.token)
-      localStorage.setItem('user', JSON.stringify(normalizedUser!))
+      persistAuthSession({
+        token: response.token,
+        user: normalizedUser!,
+        rememberMe: getRememberMePreference()
+      })
       
       return { ...response, user: normalizedUser! }
     } catch (error) {
@@ -283,8 +322,7 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       laravelToken.value = null
       user.value = null
-      localStorage.removeItem('laravel_token')
-      localStorage.removeItem('user')
+      clearStoredAuth()
     }
   }
 
@@ -296,7 +334,7 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await laravelAuthApi.refresh() as RefreshResponse
       if (response.token) {
         laravelToken.value = response.token
-        localStorage.setItem('laravel_token', response.token)
+        persistAuthSession({ token: response.token, user: user.value ?? undefined, rememberMe: getRememberMePreference() })
       }
       return response
     } catch (error) {
@@ -315,7 +353,7 @@ export const useAuthStore = defineStore('auth', () => {
         const normalizedUser = normalizeUser(response)
         user.value = normalizedUser
         initializeTheme(resolveThemePreference(normalizedUser?.dark_mode))
-        localStorage.setItem('user', JSON.stringify(normalizedUser!))
+        persistStoredUser(normalizedUser!)
         return normalizedUser
       }
       return null
@@ -348,7 +386,7 @@ export const useAuthStore = defineStore('auth', () => {
     const normalizedUser = normalizeUser(response)
     user.value = normalizedUser
     if (normalizedUser) {
-      localStorage.setItem('user', JSON.stringify(normalizedUser))
+      persistStoredUser(normalizedUser)
     }
     return normalizedUser
   }
@@ -366,7 +404,7 @@ export const useAuthStore = defineStore('auth', () => {
     const normalizedUser = normalizeUser(response)
     user.value = normalizedUser
     if (normalizedUser) {
-      localStorage.setItem('user', JSON.stringify(normalizedUser))
+      persistStoredUser(normalizedUser)
     }
     return normalizedUser
   }
@@ -380,7 +418,7 @@ export const useAuthStore = defineStore('auth', () => {
     const normalizedUser = normalizeUser(response)
     user.value = normalizedUser
     if (normalizedUser) {
-      localStorage.setItem('user', JSON.stringify(normalizedUser))
+      persistStoredUser(normalizedUser)
       if (typeof payload.dark_mode === 'boolean') {
         initializeTheme(payload.dark_mode ? 'dark' : 'light')
       }

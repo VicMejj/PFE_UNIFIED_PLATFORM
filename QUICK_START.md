@@ -116,8 +116,8 @@ npm run dev
 ### Terminal 2 - Django
 ```bash
 cd django-backend
-python manage.py runserver
-# Running on http://localhost:8000
+uv run python manage.py runserver 8001
+# Running on http://127.0.0.1:8001
 ```
 - [ ] Running ✅
 
@@ -128,6 +128,12 @@ php artisan serve --port=8001
 # Running on http://localhost:8001
 ```
 - [ ] Running ✅
+
+### One-command launch
+```bash
+cd /home/vicmejj/unified_platform
+bash ./start-dev.sh
+```
 
 ---
 

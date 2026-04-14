@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\Payroll;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Payroll\PaySlip;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Schema;
 
 class PaySlipController extends ApiController
@@ -138,14 +140,36 @@ class PaySlipController extends ApiController
         return $this->successResponse($paySlip->load('employee'), 'Pay slip sent');
     }
 
-    public function downloadPDF($id)
+    public function downloadPDF($id): Response
     {
-        $paySlip = \App\Models\Payroll\PaySlip::findOrFail($id);
+        /** @var PaySlip $paySlip */
+        $paySlip = PaySlip::with(['employee.department', 'employee.designation'])->findOrFail($id);
 
-        return $this->successResponse([
-            'payslip_id' => $paySlip->id,
-            'message' => 'PDF generation not implemented',
-        ], 'Pay slip PDF ready');
+        $this->applyCalculatedTotals($paySlip);
+
+        $employee    = $paySlip->employee;
+        $monthName   = \DateTime::createFromFormat('!m', $paySlip->payroll_month)?->format('F') ?? $paySlip->payroll_month;
+        $periodLabel = "{$monthName} {$paySlip->payroll_year}";
+        $companyName = config('app.company_name', config('app.name', 'Your Company'));
+        $currency    = config('app.currency', '$');
+        $isDraft     = ! in_array($paySlip->status, ['generated', 'sent', 'paid']);
+
+        $pdf = Pdf::loadView('payroll.payslip-pdf', compact(
+            'paySlip',
+            'employee',
+            'periodLabel',
+            'companyName',
+            'currency',
+            'isDraft'
+        ))
+        ->setPaper('a4', 'portrait')
+        ->setOption('defaultFont', 'DejaVu Sans')
+        ->setOption('isHtml5ParserEnabled', true)
+        ->setOption('isRemoteEnabled', false);
+
+        $filename = "payslip-{$paySlip->id}-{$paySlip->payroll_year}-" . str_pad($paySlip->payroll_month, 2, '0', STR_PAD_LEFT) . ".pdf";
+
+        return $pdf->download($filename);
     }
 
     private function applyCalculatedTotals(PaySlip $paySlip): void

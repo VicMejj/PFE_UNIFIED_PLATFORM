@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Gift, Plus, Trash2, AlertTriangle } from 'lucide-vue-next'
+import { Gift, Plus, Trash2, AlertTriangle, CheckCircle, XCircle, Clock, Zap } from 'lucide-vue-next'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import CardDescription from '@/components/ui/CardDescription.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import Button from '@/components/ui/Button.vue'
-import DataTable from '@/components/ui/DataTable.vue'
 import Badge from '@/components/ui/Badge.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
@@ -27,10 +26,15 @@ const recommendationsLoading = ref(false)
 const feedback = ref('')
 const errorMsg = ref('')
 const selectedEmployee = ref<any | null>(null)
+const selectedEmployeeScore = ref<any | null>(null)
 const searchQuery = ref('')
 const confirmOpen = ref(false)
+const scoreConfirmOpen = ref(false)
 const pendingRemoval = ref<any | null>(null)
 const recommendationFeedback = ref('')
+const statusConfirmOpen = ref(false)
+const pendingStatusChange = ref<any | null>(null)
+const isUpdatingStatus = ref(false)
 
 const form = reactive({
   employee_id: '',
@@ -40,13 +44,6 @@ const form = reactive({
   end_date: '',
   status: 'active'
 })
-
-const columns = [
-  { key: 'benefit_name', label: 'Benefit' },
-  { key: 'amount', label: 'Amount' },
-  { key: 'start_date', label: 'Start Date' },
-  { key: 'status', label: 'Status' }
-]
 
 const userRoles = computed(() =>
   [auth.user?.role, ...(auth.user?.allRoles ?? [])]
@@ -137,12 +134,15 @@ async function selectEmployee(employee: any) {
   selectedEmployee.value = employee
   form.employee_id = String(employee.id)
   recommendationsLoading.value = true
+  selectedEmployeeScore.value = null
 
   try {
-    const [allowances, recommendations] = await Promise.all<any>([
+    const [allowances, recommendations, scoreData] = await Promise.all<any>([
       platformApi.getEmployeeAllowances(employee.id),
-      platformApi.getBenefitRecommendations(employee.id)
+      platformApi.getBenefitRecommendations(employee.id),
+      platformApi.getEmployeeScore(employee.id)
     ])
+    selectedEmployeeScore.value = scoreData?.score || scoreData
     const allowanceItems = Array.isArray(allowances)
       ? allowances
       : Array.isArray(allowances?.data)
@@ -170,7 +170,7 @@ async function selectEmployee(employee: any) {
   }
 }
 
-async function assignBenefit() {
+async function assignBenefit(force = false) {
   if (!form.employee_id || !form.allowance_option_id || !form.amount || !form.start_date) {
     errorMsg.value = 'Please fill all required fields.'
     return
@@ -183,17 +183,23 @@ async function assignBenefit() {
       amount: Number(form.amount),
       start_date: form.start_date,
       end_date: form.end_date || null,
-      status: form.status
+      status: form.status,
+      force: force
     })
 
     feedback.value = 'Benefit assigned successfully!'
     errorMsg.value = ''
+    scoreConfirmOpen.value = false
     resetForm()
     if (selectedEmployee.value) {
       await selectEmployee(selectedEmployee.value)
     }
   } catch (err: any) {
-    errorMsg.value = err.response?.data?.message || 'Unable to assign benefit.'
+    if (err.response?.status === 422 && err.response?.data?.data?.requires_force) {
+      scoreConfirmOpen.value = true
+    } else {
+      errorMsg.value = err.response?.data?.message || 'Unable to assign benefit.'
+    }
     console.error('Assign failed', err)
   } finally {
     notifications.fetchNotifications()
@@ -250,6 +256,73 @@ function applyRecommendation(recommendation: any) {
   recommendationFeedback.value = recommendation?.benefit_id
     ? `${resolveBenefitName(recommendation.benefit_id)} was added to the assignment form.`
     : 'Recommendation applied to the assignment form.'
+}
+
+function getStatusVariant(status: string) {
+  switch (status) {
+    case 'active':
+      return 'success'
+    case 'pending':
+      return 'warning'
+    case 'inactive':
+      return 'secondary'
+    case 'claimed':
+      return 'info'
+    default:
+      return 'secondary'
+  }
+}
+
+function getStatusIcon(status: string) {
+  switch (status) {
+    case 'active':
+      return CheckCircle
+    case 'pending':
+      return Clock
+    case 'inactive':
+      return XCircle
+    default:
+      return Clock
+  }
+}
+
+function getStatusLabel(status: string, claimed?: boolean) {
+  if (status === 'active' && claimed) {
+    return 'Claimed'
+  }
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
+function openStatusChange(item: any, newStatus: string) {
+  pendingStatusChange.value = { ...item, newStatus }
+  statusConfirmOpen.value = true
+}
+
+function closeStatusChange() {
+  pendingStatusChange.value = null
+  statusConfirmOpen.value = false
+}
+
+async function confirmStatusChange() {
+  if (!pendingStatusChange.value) return
+
+  isUpdatingStatus.value = true
+  try {
+    await platformApi.updateAllowanceStatus(pendingStatusChange.value.id, pendingStatusChange.value.newStatus)
+    feedback.value = `Benefit status changed to "${pendingStatusChange.value.newStatus}" successfully!`
+    errorMsg.value = ''
+    pendingStatusChange.value = null
+    statusConfirmOpen.value = false
+    if (selectedEmployee.value) {
+      await selectEmployee(selectedEmployee.value)
+    }
+  } catch (err: any) {
+    errorMsg.value = err.response?.data?.message || 'Unable to update benefit status.'
+    console.error('Status update failed', err)
+  } finally {
+    isUpdatingStatus.value = false
+    notifications.fetchNotifications()
+  }
 }
 
 onMounted(loadData)
@@ -316,6 +389,26 @@ onMounted(loadData)
           <CardDescription>
             Assigning to: <span class="font-semibold">{{ selectedEmployee.display_name }}</span>
           </CardDescription>
+
+          <!-- Performance Context Header -->
+          <div v-if="selectedEmployeeScore" class="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/20">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <Badge :variant="selectedEmployeeScore.overall_score >= 85 ? 'success' : selectedEmployeeScore.overall_score >= 70 ? 'default' : 'warning'" class="h-8 w-8 rounded-lg p-0 flex items-center justify-center text-lg font-bold">
+                  {{ Math.round(selectedEmployeeScore.overall_score) }}
+                </Badge>
+                <div>
+                  <div class="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Holistic Score</div>
+                  <div class="text-sm font-semibold capitalize">{{ selectedEmployeeScore.score_tier }} Performance</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-[10px] text-slate-500">Last calculated</div>
+                <div class="text-xs font-medium">{{ new Date(selectedEmployeeScore.last_calculated_at).toLocaleDateString() }}</div>
+              </div>
+            </div>
+          </div>
+
           <div class="mt-4 flex flex-wrap gap-2">
             <span class="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
               Total benefits: {{ selectedEmployeeSummary.total }}
@@ -483,30 +576,97 @@ onMounted(loadData)
         <CardDescription>All benefits assigned to this employee.</CardDescription>
       </CardHeader>
       <CardContent>
-        <DataTable
-          :columns="columns"
-          :data="employeeAllowances"
-          :loading="isLoading"
-          emptyMessage="No benefits assigned yet."
-        >
-          <template #cell(status)="{ value }">
-            <Badge :variant="value === 'active' ? 'success' : 'secondary'">
-              {{ value }}
-            </Badge>
-          </template>
-          <template #actions="{ item }">
-            <Button
-              v-if="canManageBenefits"
-              size="sm"
-              variant="destructive"
-              class="bg-rose-600 hover:bg-rose-700 text-white"
-              type="button"
-              @click.stop="openRemoveConfirmation(item)"
-            >
-              <Trash2 class="w-4 h-4" />
-            </Button>
-          </template>
-        </DataTable>
+        <div v-if="employeeAllowances.length === 0 && !isLoading" class="rounded-2xl border border-dashed border-slate-200 p-8 text-center dark:border-slate-700">
+          <Gift class="mx-auto h-12 w-12 text-slate-300 dark:text-slate-600" />
+          <p class="mt-4 text-sm text-slate-500 dark:text-slate-400">No benefits assigned yet.</p>
+          <p class="mt-1 text-xs text-slate-400 dark:text-slate-500">Use the form to assign a new benefit.</p>
+        </div>
+        <div v-else class="space-y-3">
+          <div
+            v-for="item in employeeAllowances"
+            :key="item.id"
+            class="rounded-2xl border border-slate-200 bg-white p-4 transition-all hover:shadow-md dark:border-slate-700 dark:bg-slate-900"
+          >
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div class="flex-1">
+                <div class="flex items-center gap-3">
+                  <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-500/20">
+                    <component :is="getStatusIcon(item.status)" :class="['h-5 w-5', item.status === 'active' ? 'text-emerald-600' : item.status === 'pending' ? 'text-amber-600' : 'text-slate-400']" />
+                  </div>
+                  <div>
+                    <h4 class="font-semibold text-slate-900 dark:text-white">{{ item.benefit_name }}</h4>
+                    <div class="flex items-center gap-2 mt-1">
+                      <Badge :variant="getStatusVariant(item.status)" class="capitalize">
+                        {{ getStatusLabel(item.status, item.claimed) }}
+                      </Badge>
+                      <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ item.amount }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <div v-if="item.status === 'pending'" class="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    @click.stop="openStatusChange(item, 'active')"
+                  >
+                    <Zap class="w-4 h-4 mr-1" />
+                    Activate
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    @click.stop="openStatusChange(item, 'inactive')"
+                  >
+                    Deactivate
+                  </Button>
+                </div>
+                <div v-else-if="item.status === 'active' && !item.claimed" class="flex items-center gap-2">
+                  <Badge variant="success" class="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                    Ready to Claim
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    @click.stop="openStatusChange(item, 'inactive')"
+                  >
+                    Deactivate
+                  </Button>
+                </div>
+                <div v-else-if="item.status === 'active' && item.claimed" class="flex items-center gap-2">
+                  <Badge variant="info" class="bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
+                    Claimed
+                  </Badge>
+                </div>
+                <div v-else-if="item.status === 'inactive'">
+                  <Button
+                    size="sm"
+                    class="bg-amber-600 hover:bg-amber-700 text-white"
+                    @click.stop="openStatusChange(item, 'pending')"
+                  >
+                    Set Pending
+                  </Button>
+                </div>
+                <Button
+                  v-if="canManageBenefits"
+                  size="sm"
+                  variant="destructive"
+                  class="bg-rose-600 hover:bg-rose-700 text-white ml-2"
+                  type="button"
+                  @click.stop="openRemoveConfirmation(item)"
+                >
+                  <Trash2 class="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+              <span>Start: {{ item.start_date }}</span>
+              <span v-if="item.end_date">End: {{ item.end_date }}</span>
+              <span v-if="item.claimed_at">Claimed: {{ new Date(item.claimed_at).toLocaleDateString() }}</span>
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
 
@@ -534,6 +694,78 @@ onMounted(loadData)
           </Button>
           <Button class="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white" @click="confirmRemoveBenefit">
             Remove benefit
+          </Button>
+        </div>
+      </div>
+    </div>
+    <div v-if="scoreConfirmOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" @click.self="scoreConfirmOpen = false">
+      <div class="w-full max-w-xl rounded-[2rem] border border-amber-800 bg-slate-900 p-6 shadow-2xl">
+        <div class="flex items-start gap-4">
+          <div class="mt-1 rounded-3xl bg-amber-500/10 p-3 text-amber-300">
+            <AlertTriangle class="h-6 w-6" />
+          </div>
+          <div class="flex-1">
+            <h3 class="text-2xl font-semibold text-white">Low Performance Warning</h3>
+            <p class="mt-3 text-sm leading-6 text-slate-400">
+              <strong>{{ selectedEmployee?.display_name }}</strong> has a holistic score of 
+              <span class="text-amber-400 font-bold">{{ Math.round(selectedEmployeeScore?.overall_score) }}%</span>, 
+              which is below the recommended threshold (70%).
+            </p>
+            <p class="mt-2 text-sm text-slate-500">
+              Are you sure you want to award this benefit despite the current performance standing?
+            </p>
+          </div>
+        </div>
+        <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <Button variant="outline" class="w-full sm:w-auto" @click="scoreConfirmOpen = false">
+            Cancel
+          </Button>
+          <Button class="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white" @click="assignBenefit(true)">
+            Proceed Anyway
+          </Button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="statusConfirmOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4" @click.self="closeStatusChange">
+      <div class="w-full max-w-xl rounded-[2rem] border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+        <div class="flex items-start gap-4">
+          <div :class="['mt-1 rounded-3xl p-3', pendingStatusChange?.newStatus === 'active' ? 'bg-emerald-500/10 text-emerald-300' : pendingStatusChange?.newStatus === 'inactive' ? 'bg-slate-500/10 text-slate-300' : 'bg-amber-500/10 text-amber-300']">
+            <component :is="pendingStatusChange?.newStatus === 'active' ? CheckCircle : pendingStatusChange?.newStatus === 'inactive' ? XCircle : Clock" class="h-6 w-6" />
+          </div>
+          <div class="flex-1">
+            <h3 class="text-2xl font-semibold text-white">
+              {{ pendingStatusChange?.newStatus === 'active' ? 'Activate Benefit' : pendingStatusChange?.newStatus === 'inactive' ? 'Deactivate Benefit' : 'Set Pending' }}
+            </h3>
+            <p class="mt-3 text-sm leading-6 text-slate-400">
+              Change <strong class="text-white">{{ pendingStatusChange?.benefit_name }}</strong> status from 
+              <Badge :variant="getStatusVariant(pendingStatusChange?.status)" class="capitalize mx-1">
+                {{ pendingStatusChange?.status }}
+              </Badge>
+              to 
+              <Badge :variant="getStatusVariant(pendingStatusChange?.newStatus)" class="capitalize mx-1">
+                {{ pendingStatusChange?.newStatus }}
+              </Badge>
+            </p>
+            <p v-if="pendingStatusChange?.newStatus === 'active'" class="mt-2 text-sm text-emerald-400">
+              The employee will be able to claim this benefit once activated.
+            </p>
+            <p v-else-if="pendingStatusChange?.newStatus === 'inactive'" class="mt-2 text-sm text-slate-400">
+              The employee will lose access to this benefit.
+            </p>
+          </div>
+        </div>
+        <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <Button variant="outline" class="w-full sm:w-auto" :disabled="isUpdatingStatus" @click="closeStatusChange">
+            Cancel
+          </Button>
+          <Button 
+            :class="`w-full sm:w-auto ${pendingStatusChange?.newStatus === 'active' ? 'bg-emerald-600 hover:bg-emerald-700' : pendingStatusChange?.newStatus === 'inactive' ? 'bg-slate-600 hover:bg-slate-700' : 'bg-amber-600 hover:bg-amber-700'}`"
+            :disabled="isUpdatingStatus"
+            @click="confirmStatusChange"
+          >
+            <span v-if="isUpdatingStatus" class="animate-pulse mr-2">...</span>
+            {{ isUpdatingStatus ? 'Updating...' : 'Confirm Change' }}
           </Button>
         </div>
       </div>

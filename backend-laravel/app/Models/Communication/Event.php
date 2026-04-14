@@ -13,14 +13,15 @@ class Event extends Model
         'start_time',
         'end_time',
         'location',
-        'is_active'
+        'type',
+        'color',
+        'is_active',
+        'user_id',
     ];
 
     protected $casts = [
-        'event_date' => 'date',
-        'start_time' => 'datetime',
-        'end_time' => 'datetime',
-        'is_active' => 'boolean'
+        'event_date' => 'date:Y-m-d',
+        'is_active'  => 'boolean',
     ];
 
     public function employees()

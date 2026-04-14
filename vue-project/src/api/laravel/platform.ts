@@ -129,6 +129,11 @@ export const platformApi = {
     return unwrapResponse(response)
   },
 
+  async getEmployeeScore(employeeId: number) {
+    const response = await laravelApi.get(`/employees/${employeeId}/score`)
+    return unwrapResponse(response)
+  },
+
   async updateEmployee(id: number, payload: Record<string, unknown>) {
     const response = await laravelApi.put(`/employees/${id}`, payload)
     return unwrapResponse(response)
@@ -144,8 +149,19 @@ export const platformApi = {
     return unwrapResponse<LeaveTypeItem[] | { data?: LeaveTypeItem[] }>(response)
   },
 
-  async createLeave(payload: Record<string, unknown>) {
-    const response = await laravelApi.post('/leaves', payload)
+  async createLeave(payload: Record<string, unknown> | FormData) {
+    const response = await laravelApi.post('/leaves', payload, payload instanceof FormData ? {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    } : undefined)
+    return unwrapResponse(response)
+  },
+
+  async uploadLeaveAttachment(leaveId: number, file: File) {
+    const formData = new FormData()
+    formData.append('attachment', file)
+    const response = await laravelApi.post(`/leaves/${leaveId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
     return unwrapResponse(response)
   },
 
@@ -181,9 +197,54 @@ export const platformApi = {
     return unwrapResponse(response)
   },
 
-  async getEvents(search = '') {
-    const response = await laravelApi.get('/communication/events', { params: search ? { search } : undefined })
+  async getEvents(params: Record<string, unknown> = {}) {
+    const response = await laravelApi.get('/communication/events', { params })
     return unwrapResponse<{ data?: EventItem[] } | EventItem[]>(response)
+  },
+
+  async search(query: string, limit = 5) {
+    const response = await laravelApi.get('/search', { params: { q: query, limit } })
+    return unwrapResponse(response)
+  },
+
+  async getAttendanceRecords(params: Record<string, unknown> = {}) {
+    const response = await laravelApi.get('/attendance', { params })
+    return unwrapResponse(response)
+  },
+
+  async createAttendanceRecord(payload: Record<string, unknown>) {
+    const response = await laravelApi.post('/attendance/records', payload)
+    return unwrapResponse(response)
+  },
+
+  async updateAttendanceRecord(id: number, payload: Record<string, unknown>) {
+    const response = await laravelApi.put(`/attendance/records/${id}`, payload)
+    return unwrapResponse(response)
+  },
+
+  async deleteAttendanceRecord(id: number) {
+    const response = await laravelApi.delete(`/attendance/records/${id}`)
+    return unwrapResponse(response)
+  },
+
+  async getAttendanceStatistics(params: Record<string, unknown> = {}) {
+    const response = await laravelApi.get('/attendance/statistics', { params })
+    return unwrapResponse(response)
+  },
+
+  async createEvent(payload: Record<string, unknown>) {
+    const response = await laravelApi.post('/communication/events', payload)
+    return unwrapResponse(response)
+  },
+
+  async updateEvent(id: number, payload: Record<string, unknown>) {
+    const response = await laravelApi.put(`/communication/events/${id}`, payload)
+    return unwrapResponse(response)
+  },
+
+  async deleteEvent(id: number) {
+    const response = await laravelApi.delete(`/communication/events/${id}`)
+    return unwrapResponse(response)
   },
 
   async createPaySlip(payload: Record<string, unknown>) {
@@ -194,6 +255,13 @@ export const platformApi = {
   async generatePaySlip(id: number) {
     const response = await laravelApi.post(`/payroll/pay-slips/${id}/generate`)
     return unwrapResponse(response)
+  },
+
+  async downloadPayslipPDF(id: number): Promise<Blob> {
+    const response = await laravelApi.get(`/payroll/pay-slips/${id}/download-pdf`, {
+      responseType: 'blob',
+    })
+    return response.data as Blob
   },
 
   async sendPaySlip(id: number) {
@@ -234,6 +302,13 @@ export const platformApi = {
   async getContract(id: number) {
     const response = await laravelApi.get(`/contracts/${id}`)
     return unwrapResponse(response)
+  },
+
+  async downloadContractPDF(id: number): Promise<Blob> {
+    const response = await laravelApi.get(`/contracts/${id}/download`, {
+      responseType: 'blob',
+    })
+    return response.data as Blob
   },
 
   async updateContract(id: number, payload: Record<string, unknown>) {
@@ -374,11 +449,6 @@ export const platformApi = {
     return unwrapResponse(response)
   },
 
-  async getMyAllowances() {
-    const response = await laravelApi.get('/payroll/allowances')
-    return unwrapResponse(response)
-  },
-
   async createAllowanceOption(payload: Record<string, unknown>) {
     const response = await laravelApi.post('/payroll/allowance-options', payload)
     return unwrapResponse(response)
@@ -399,6 +469,16 @@ export const platformApi = {
     return unwrapResponse(response)
   },
 
+  async updateAllowanceStatus(allowanceId: number, status: 'active' | 'inactive' | 'pending') {
+    const response = await laravelApi.post(`/payroll/allowances/${allowanceId}/update-status`, { status })
+    return unwrapResponse(response)
+  },
+
+  async claimAllowance(allowanceId: number) {
+    const response = await laravelApi.post(`/payroll/allowances/${allowanceId}/claim`)
+    return unwrapResponse(response)
+  },
+
   async suspendUser(id: number) {
     const response = await laravelApi.post(`/core/users/${id}/suspend`)
     return unwrapResponse(response)
@@ -416,6 +496,53 @@ export const platformApi = {
 
   async updateUserStatus(id: number, status: 'active' | 'suspended' | 'banned') {
     const response = await laravelApi.post(`/core/users/${id}/update-status`, { status })
+    return unwrapResponse(response)
+  },
+
+  async getMyAllowances() {
+    const response = await laravelApi.get('/payroll/allowances')
+    return unwrapResponse(response)
+  },
+
+  async getMyScore() {
+    const response = await laravelApi.get('/employees/my-score')
+    return unwrapResponse(response)
+  },
+
+  async getDashboardScores() {
+    const response = await laravelApi.get('/employees/scores/dashboard')
+    return unwrapResponse(response)
+  },
+
+  // ── Benefit Requests ─────────────────────────────────
+  async getBenefitRequests() {
+    const response = await laravelApi.get('/payroll/benefits/requests')
+    return unwrapResponse(response)
+  },
+
+  async getMyBenefitRequests() {
+    const response = await laravelApi.get('/payroll/benefits/requests/my')
+    return unwrapResponse(response)
+  },
+
+  async submitBenefitRequest(payload: object) {
+    const response = await laravelApi.post('/payroll/benefits/requests', payload)
+    return unwrapResponse(response)
+  },
+
+  async approveBenefitRequest(id: number, payload: object) {
+    const response = await laravelApi.post(`/payroll/benefits/requests/${id}/approve`, payload)
+    return unwrapResponse(response)
+  },
+
+  async rejectBenefitRequest(id: number, payload: object) {
+    const response = await laravelApi.post(`/payroll/benefits/requests/${id}/reject`, payload)
+    return unwrapResponse(response)
+  },
+
+  // ── Insurance Claims ─────────────────────────────────
+  async sendClaimToProvider(id: number) {
+    const response = await laravelApi.post(`/insurance/claims/${id}/send-to-provider`)
     return unwrapResponse(response)
   }
 }

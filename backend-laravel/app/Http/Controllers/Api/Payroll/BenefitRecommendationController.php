@@ -7,12 +7,21 @@ use App\Http\Controllers\Api\CallsDjangoAI;
 use App\Models\Employee\Employee;
 use App\Models\Payroll\AllowanceOption;
 use App\Models\Payroll\EmployeeBenefitRecommendation;
+use App\Services\EmployeeScoreService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class BenefitRecommendationController extends ApiController
 {
     use CallsDjangoAI;
+
+    protected $scoreService;
+
+    public function __construct(EmployeeScoreService $scoreService)
+    {
+        $this->scoreService = $scoreService;
+    }
 
     public function recommend($id)
     {
@@ -21,6 +30,19 @@ class BenefitRecommendationController extends ApiController
             ?? ($employee->tenure_years ? (int) round($employee->tenure_years * 12) : 0);
         $performanceScore = $employee->performance_score ?? 3.5;
         $attendanceRate = $employee->attendance_rate ?? 95;
+        $departmentName = Str::lower($employee->department?->name ?? '');
+        $roleName = Str::lower($employee->designation?->name ?? $employee->job_title ?? '');
+        $recentSelections = EmployeeBenefitRecommendation::query()
+            ->where('employee_id', $employee->id)
+            ->with('allowanceOption')
+            ->latest('updated_at')
+            ->limit(5)
+            ->get()
+            ->pluck('allowanceOption.name')
+            ->filter()
+            ->map(fn ($value) => Str::lower($value))
+            ->values()
+            ->all();
 
         $availableBenefits = AllowanceOption::query()
             ->where('is_active', true)
@@ -29,8 +51,11 @@ class BenefitRecommendationController extends ApiController
                 'id' => $option->id,
                 'name' => $option->name,
                 'description' => $option->description,
+                'assignment_count' => EmployeeBenefitRecommendation::query()->where('allowance_option_id', $option->id)->count(),
             ])
             ->values();
+
+        $score = $this->scoreService->getScore($employee);
 
         $payload = [
             'employee_id' => $employee->id,
@@ -42,6 +67,8 @@ class BenefitRecommendationController extends ApiController
                 'tenure_months' => $tenureMonths,
                 'performance_score' => $performanceScore,
                 'attendance_rate' => $attendanceRate,
+                'overall_score' => $score->overall_score,
+                'score_tier' => $score->score_tier,
             ],
             'available_benefits' => $availableBenefits,
         ];
@@ -77,12 +104,32 @@ class BenefitRecommendationController extends ApiController
     {
         $gapActions = array_values(array_filter($item['gap_actions'] ?? []));
         $status = $item['status'] ?? 'not_eligible';
+        $score = (float) ($item['eligibility_score'] ?? 0);
 
         return [
             ...$item,
             'gap_actions' => $gapActions,
+            'benefit_name' => $item['benefit_name'] ?? null,
+            'reasoning' => $item['reasoning'] ?? $this->buildReasoning($status, $score, $gapActions),
             'admin_guidance' => $item['admin_guidance'] ?? $this->buildAdminGuidance($status, $gapActions),
         ];
+    }
+
+    protected function buildReasoning(string $status, float $score, array $gapActions): string
+    {
+        if ($status === 'eligible') {
+            return 'Strong fit with current role, tenure, and performance profile.';
+        }
+
+        if ($status === 'nearly_eligible') {
+            return 'Close to eligibility. A small policy gap remains before assignment.';
+        }
+
+        if (! empty($gapActions)) {
+            return 'Needs improvement in the highlighted areas before this benefit becomes a good fit.';
+        }
+
+        return 'A cautious recommendation based on the current employee profile.';
     }
 
     protected function buildAdminGuidance(string $status, array $gapActions): string
@@ -122,5 +169,45 @@ class BenefitRecommendationController extends ApiController
                 ]
             );
         }
+    }
+
+    protected function keywordBoost(string $benefitName, string $departmentName, string $roleName, array $recentSelections): float
+    {
+        $benefit = Str::lower($benefitName);
+        $boost = 0.0;
+
+        $keywordMap = [
+            'health' => ['health', 'medical', 'insurance', 'wellness', 'hsa', 'care'],
+            'dental' => ['dental', 'teeth', 'oral'],
+            'vision' => ['vision', 'eyewear', 'glasses'],
+            'transport' => ['transport', 'commute', 'travel'],
+            'remote' => ['remote', 'home office', 'home'],
+            'training' => ['training', 'learning', 'course', 'development'],
+            'family' => ['family', 'parental', 'child', 'care'],
+            'fitness' => ['fitness', 'gym', 'wellness', 'health'],
+        ];
+
+        foreach ($keywordMap as $keywords) {
+            foreach ($keywords as $keyword) {
+                if (Str::contains($benefit, $keyword)) {
+                    $boost += 0.08;
+                    break 2;
+                }
+            }
+        }
+
+        if ($departmentName && Str::contains($benefit, $departmentName)) {
+            $boost += 0.12;
+        }
+
+        if ($roleName && Str::contains($benefit, $roleName)) {
+            $boost += 0.10;
+        }
+
+        if (! empty($recentSelections) && in_array($benefit, $recentSelections, true)) {
+            $boost -= 0.18;
+        }
+
+        return max(-0.25, min(0.25, $boost));
     }
 }

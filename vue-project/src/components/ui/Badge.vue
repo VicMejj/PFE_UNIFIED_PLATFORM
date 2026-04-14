@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 const props = defineProps<{
-  variant?: 'default' | 'success' | 'warning' | 'destructive' | 'outline' | 'secondary'
+  variant?: 'default' | 'success' | 'warning' | 'destructive' | 'outline' | 'secondary' | 'info'
 }>()
 
 const baseClasses = "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -19,8 +19,10 @@ const variantClasses = computed(() => {
       return "border-transparent bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100 hover:bg-gray-200"
     case 'outline':
       return "text-foreground border border-input"
+    case 'info':
+      return "border-transparent bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 hover:bg-blue-200"
     default:
-      return "border-transparent bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 hover:bg-blue-200" // primary
+      return "border-transparent bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 hover:bg-blue-200"
   }
 })
 </script>

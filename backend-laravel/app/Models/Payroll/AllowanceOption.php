@@ -20,4 +20,9 @@ class AllowanceOption extends Model
     {
         return $this->hasMany(Allowance::class);
     }
+
+    public function benefitRecommendations()
+    {
+        return $this->hasMany(EmployeeBenefitRecommendation::class);
+    }
 }

@@ -135,8 +135,13 @@ npm run dev
 **Terminal 2 - Django Backend:**
 ```bash
 cd django-backend
-python manage.py runserver
-# Runs on http://localhost:8000
+uv run python manage.py runserver 8001
+# Runs on http://127.0.0.1:8001
+```
+
+Or from the repo root:
+```bash
+bash ./start-dev.sh
 ```
 
 **Terminal 3 - Laravel Backend:**

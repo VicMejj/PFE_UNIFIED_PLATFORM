@@ -158,6 +158,11 @@ onMounted(async () => {
           <div v-else class="py-10 text-center text-sm text-slate-500 dark:text-slate-400">
             AI suggestions are loading or temporarily unavailable.
           </div>
+          <div class="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+            <Button class="w-full border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800" @click="$router.push('/notifications')">
+              View All Notifications
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

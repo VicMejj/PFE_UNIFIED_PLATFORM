@@ -35,6 +35,7 @@ class DesignationController extends ApiController
             'title' => 'required|string|max:255',
             'code' => 'sometimes|string|max:50',
             'description' => 'sometimes|string',
+            'is_active' => 'sometimes|boolean',
         ]);
 
         $designation = Designation::create($data);
@@ -54,6 +55,7 @@ class DesignationController extends ApiController
             'title' => 'sometimes|required|string|max:255',
             'code' => 'sometimes|string|max:50',
             'description' => 'sometimes|string',
+            'is_active' => 'sometimes|boolean',
         ]);
         $designation->update($data);
         return $this->successResponse(new DesignationResource($designation));
@@ -62,7 +64,7 @@ class DesignationController extends ApiController
     public function destroy($id)
     {
         $designation = Designation::findOrFail($id);
-        $designation->delete();
-        return response()->json(null, 204);
+        $designation->update(['is_active' => false]);
+        return $this->successResponse(new DesignationResource($designation), 'Designation deactivated');
     }
 }

@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { clearStoredAuth, getStoredToken } from '@/utils/authStorage'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_LARAVEL_API_URL + '/v1',
@@ -6,7 +7,7 @@ const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('laravel_token')
+  const token = getStoredToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
@@ -15,7 +16,7 @@ api.interceptors.response.use(
   (r) => r,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('laravel_token')
+      clearStoredAuth()
       window.location.href = '/login'
     }
     return Promise.reject(error)

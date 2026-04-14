@@ -35,6 +35,7 @@ class DepartmentController extends ApiController
             'name' => 'required|string|max:255',
             'code' => 'sometimes|string|max:50',
             'description' => 'sometimes|string',
+            'is_active' => 'sometimes|boolean',
         ]);
 
         $department = Department::create($data);
@@ -54,6 +55,7 @@ class DepartmentController extends ApiController
             'name' => 'sometimes|required|string|max:255',
             'code' => 'sometimes|string|max:50',
             'description' => 'sometimes|string',
+            'is_active' => 'sometimes|boolean',
         ]);
         $department->update($data);
         return $this->successResponse(new DepartmentResource($department));
@@ -62,7 +64,7 @@ class DepartmentController extends ApiController
     public function destroy($id)
     {
         $department = Department::findOrFail($id);
-        $department->delete();
-        return response()->json(null, 204);
+        $department->update(['is_active' => false]);
+        return $this->successResponse(new DepartmentResource($department), 'Department deactivated');
     }
 }

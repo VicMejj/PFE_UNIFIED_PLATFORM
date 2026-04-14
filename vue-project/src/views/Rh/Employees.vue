@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import { Brain, AlertTriangle, Check, Plus, Shield, ShieldOff, Users } from 'lucide-vue-next'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -13,12 +14,18 @@ import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import { platformApi } from '@/api/laravel/platform'
 import { djangoAiApi } from '@/api/django/ai'
-import { unwrapItems } from '@/api/http'
+import { isNetworkOrServerUnavailable, unwrapItems } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 
 const auth = useAuthStore()
 const notifications = useNotificationsStore()
+
+const organizationSetupHref = computed(() => {
+  if (auth.user?.role === 'admin') return '/admin/organization'
+  if (auth.user?.role === 'rh_manager') return '/rh/organization'
+  return null
+})
 
 const directoryItems = ref<any[]>([])
 const branches = ref<any[]>([])
@@ -159,8 +166,9 @@ const fetchEmployees = async () => {
     departments.value = unwrapItems(departmentData)
     designations.value = unwrapItems(designationData)
   } catch (err) {
-    errorMsg.value = 'Unable to load employees right now.'
-    console.warn('Employees page fallback', err)
+    errorMsg.value = isNetworkOrServerUnavailable(err)
+      ? 'Laravel is unavailable right now, so employees cannot be loaded.'
+      : 'Unable to load employees right now.'
   } finally {
     isLoading.value = false
   }
@@ -405,8 +413,18 @@ async function openPrediction(employee: any) {
 
     prediction.value = normalizeTurnoverPrediction(result)
   } catch (error: any) {
-    predictionError.value = error?.response?.data?.error ?? error?.response?.data?.message ?? 'Unable to fetch turnover prediction right now.'
-    console.error('Unable to fetch turnover prediction', error)
+    const isConnectionRefused =
+      error?.code === 'ERR_NETWORK' ||
+      error?.code === 'ECONNABORTED' ||
+      String(error?.message || '').toLowerCase().includes('connection refused')
+
+    predictionError.value = isConnectionRefused
+      ? 'AI turnover prediction is temporarily unavailable. The employee profile is still fully usable.'
+      : error?.response?.data?.error ?? error?.response?.data?.message ?? 'Unable to fetch turnover prediction right now.'
+
+    if (!isConnectionRefused) {
+      console.warn('Unable to fetch turnover prediction', error)
+    }
   } finally {
     isPredictionLoading.value = false
   }
@@ -444,10 +462,19 @@ onMounted(fetchEmployees)
     <Card v-if="isCreating">
       <CardHeader>
         <CardTitle>{{ selectedPendingUser ? 'Accept Pending User' : 'Create Employee' }}</CardTitle>
-        <CardDescription>
-          {{ selectedPendingUser
-            ? `Finish ${selectedPendingUser.name}'s employee profile and choose the access role.`
-            : 'This form now posts directly to the Laravel employee endpoint.' }}
+        <CardDescription class="space-y-2">
+          <span>
+            {{ selectedPendingUser
+              ? `Finish ${selectedPendingUser.name}'s employee profile and choose the access role.`
+              : 'This form now posts directly to the Laravel employee endpoint.' }}
+          </span>
+          <span v-if="organizationSetupHref" class="block text-sky-700 dark:text-sky-300">
+            Need new branches, departments, or job titles?
+            <RouterLink :to="organizationSetupHref" class="font-semibold underline underline-offset-2 hover:text-sky-900 dark:hover:text-sky-100">
+              Open Organization setup
+            </RouterLink>
+            , then return here and refresh if lists are empty.
+          </span>
         </CardDescription>
       </CardHeader>
       <CardContent class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

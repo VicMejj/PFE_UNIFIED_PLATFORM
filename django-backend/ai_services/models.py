@@ -6,6 +6,9 @@ class TurnoverPrediction(BaseModel):
     prediction_score = models.FloatField()
     risk_level = models.CharField(max_length=50)
     factors_analyzed = models.JSONField(default=dict)
+    user_id = models.IntegerField(null=True, blank=True)
+    session_uuid = models.CharField(max_length=255, null=True, blank=True)
+    input_data = models.JSONField(default=dict)
     
     class Meta:
         db_table = 'ai_turnover_predictions'
@@ -29,6 +32,9 @@ class LoanRiskAssessment(BaseModel):
     probability_of_default = models.FloatField()
     recommendation = models.CharField(max_length=100)
     risk_tier = models.CharField(max_length=50)
+    user_id = models.IntegerField(null=True, blank=True)
+    session_uuid = models.CharField(max_length=255, null=True, blank=True)
+    input_data = models.JSONField(default=dict)
 
     class Meta:
         db_table = 'ai_loan_risk_assessments'

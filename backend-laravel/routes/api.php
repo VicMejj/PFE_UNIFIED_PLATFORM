@@ -64,6 +64,19 @@ Route::middleware('auth:api')->group(function () {
         Route::get('{id}/statistics', [App\Http\Controllers\Api\Employee\EmployeeController::class, 'getStatistics']);
         Route::get('{id}/benefit-recommendations', [App\Http\Controllers\Api\Payroll\BenefitRecommendationController::class, 'recommend']);
         
+        // Employee Score routes
+        Route::get('scores', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'index']);
+        Route::get('scores/dashboard', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'dashboard']);
+        Route::post('scores/bulk-recalculate', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'bulkRecalculate']);
+        Route::get('my-score', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'myScore']);
+        Route::prefix('{employeeId}/score')->group(function () {
+            Route::get('/', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'show']);
+            Route::post('/recalculate', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'recalculate']);
+            Route::get('/history', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'history']);
+            Route::get('/eligibility', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'checkEligibility']);
+            Route::get('/suggestions', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'suggestions']);
+        });
+        
         Route::apiResource('documents', App\Http\Controllers\Api\Employee\DocumentController::class);
         Route::apiResource('employee-documents', App\Http\Controllers\Api\Employee\EmployeeDocumentController::class);
         Route::apiResource('awards', App\Http\Controllers\Api\Employee\AwardController::class);
@@ -88,6 +101,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('{id}', [App\Http\Controllers\Api\Leave\LeaveController::class, 'show'])->whereNumber('id');
         Route::match(['put', 'patch'], '{id}', [App\Http\Controllers\Api\Leave\LeaveController::class, 'update'])->whereNumber('id');
         Route::delete('{id}', [App\Http\Controllers\Api\Leave\LeaveController::class, 'destroy'])->whereNumber('id');
+        Route::post('{id}/attachments', [App\Http\Controllers\Api\Leave\LeaveController::class, 'uploadAttachment'])->whereNumber('id');
+        Route::get('{leaveId}/attachments/{attachmentId}/download', [App\Http\Controllers\Api\Leave\LeaveController::class, 'downloadAttachment'])->whereNumber('leaveId')->whereNumber('attachmentId');
         Route::post('{id}/approve-by-manager', [App\Http\Controllers\Api\Leave\LeaveController::class, 'approveByManager']);
         Route::post('{id}/approve-by-hr', [App\Http\Controllers\Api\Leave\LeaveController::class, 'approveByHR']);
         Route::post('{id}/reject', [App\Http\Controllers\Api\Leave\LeaveController::class, 'reject']);
@@ -108,6 +123,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('pay-slips/{id}/download-pdf', [App\Http\Controllers\Api\Payroll\PaySlipController::class, 'downloadPDF']);
         
         Route::apiResource('allowances', App\Http\Controllers\Api\Payroll\AllowanceController::class);
+        Route::post('allowances/{id}/update-status', [App\Http\Controllers\Api\Payroll\AllowanceController::class, 'updateStatus']);
+        Route::post('allowances/{id}/claim', [App\Http\Controllers\Api\Payroll\AllowanceController::class, 'claim']);
         Route::apiResource('allowance-options', App\Http\Controllers\Api\Payroll\AllowanceOptionController::class);
         Route::apiResource('commissions', App\Http\Controllers\Api\Payroll\CommissionController::class);
         Route::apiResource('loans', App\Http\Controllers\Api\Payroll\LoanController::class);
@@ -120,6 +137,26 @@ Route::middleware('auth:api')->group(function () {
         Route::apiResource('saturation-deductions', App\Http\Controllers\Api\Payroll\SaturationDeductionController::class);
         Route::apiResource('other-payments', App\Http\Controllers\Api\Payroll\OtherPaymentController::class);
         Route::apiResource('payment-types', App\Http\Controllers\Api\Payroll\PaymentTypeController::class);
+        
+        // Benefit Request routes
+        Route::prefix('benefits')->group(function () {
+            Route::get('requests', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'index']);
+            Route::get('requests/my', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'myRequests']);
+            Route::get('requests/pending-count', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'pendingCount']);
+            Route::get('requests/statistics', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'statistics']);
+            Route::post('requests', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'store']);
+            
+            Route::prefix('requests/{id}')->group(function () {
+                Route::get('/', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'show']);
+                Route::post('/upload-document', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'uploadDocument']);
+                Route::post('/start-review', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'startReview']);
+                Route::post('/approve', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'approve']);
+                Route::post('/reject', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'reject']);
+                Route::post('/deliver', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'deliver']);
+                Route::post('/cancel', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'cancel']);
+                Route::post('/auto-approve', [App\Http\Controllers\Api\Payroll\BenefitRequestController::class, 'autoApprove']);
+            });
+        });
     });
 
     // ===== FINANCE ENDPOINTS =====
@@ -135,6 +172,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ===== ATTENDANCE ENDPOINTS =====
+    Route::get('attendance', [App\Http\Controllers\Api\Attendance\AttendanceController::class, 'index']);
     Route::prefix('attendance')->group(function () {
         Route::apiResource('records', App\Http\Controllers\Api\Attendance\AttendanceController::class);
         Route::get('statistics', [App\Http\Controllers\Api\Attendance\AttendanceController::class, 'getStatistics']);
@@ -201,6 +239,7 @@ Route::middleware('auth:api')->group(function () {
     Route::post('notifications/{id}/mark-read', [App\Http\Controllers\Api\Web\NotificationController::class, 'markRead'])->whereNumber('id');
     Route::post('notifications/mark-all-read', [App\Http\Controllers\Api\Web\NotificationController::class, 'markAllRead']);
     Route::get('notifications', [App\Http\Controllers\Api\Web\NotificationController::class, 'index']);
+    Route::get('search', App\Http\Controllers\Api\SearchController::class);
 
     // ===== BILLING ENDPOINTS =====
     Route::prefix('billing')->group(function () {
@@ -223,7 +262,23 @@ Route::middleware('auth:api')->group(function () {
         Route::apiResource('policies', App\Http\Controllers\Api\Insurance\InsurancePolicyController::class);
         Route::get('policies/{id}/coverage', [App\Http\Controllers\Api\Insurance\InsurancePolicyController::class, 'getCoverageDetails']);
         
-        Route::apiResource('enrollments', App\Http\Controllers\Api\Insurance\InsuranceEnrollmentController::class);
+        Route::apiResource('enrollments', App\Http\Controllers\Api\Insurance\InsuranceEnrollmentController::class)->middleware('permission:view insurance enrollments');
+        Route::get('my-enrollments', function () {
+            $user = auth()->user();
+            if (!$user) {
+                return response()->json(['message' => 'Not authenticated'], 401);
+            }
+            $employee = \App\Models\Employee\Employee::where('user_id', $user->id)->first();
+            if (!$employee) {
+                return response()->json(['message' => 'No employee profile'], 404);
+            }
+            $enrollments = \App\Models\Insurance\InsuranceEnrollment::with(['employee', 'policy'])
+                ->where('employee_id', $employee->id)
+                ->where('status', 'active')
+                ->orderBy('created_at', 'desc')
+                ->get();
+            return response()->json(['success' => true, 'data' => $enrollments]);
+        });
         Route::post('enrollments/{id}/add-dependent', [App\Http\Controllers\Api\Insurance\InsuranceEnrollmentController::class, 'addDependent']);
         Route::delete('enrollments/{enrollmentId}/dependents/{dependentId}', [App\Http\Controllers\Api\Insurance\InsuranceEnrollmentController::class, 'removeDependent']);
         Route::post('enrollments/{id}/suspend', [App\Http\Controllers\Api\Insurance\InsuranceEnrollmentController::class, 'suspend']);
@@ -233,13 +288,47 @@ Route::middleware('auth:api')->group(function () {
         Route::apiResource('dependents', App\Http\Controllers\Api\Insurance\InsuranceDependentController::class);
         
         Route::apiResource('claims', App\Http\Controllers\Api\Insurance\InsuranceClaimController::class);
+        Route::get('claims/my', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'myClaims'])->name('claims.my');
+        
+        Route::post('claims/my-test', function (Illuminate\Http\Request $request) {
+            try {
+                $employeeId = $request->input('employee_id');
+                
+                if (!$employeeId && auth()->check()) {
+                    $employee = \App\Models\Employee\Employee::where('user_id', auth()->id())->first();
+                    $employeeId = $employee?->id;
+                }
+                
+                if (!$employeeId) {
+                    return response()->json(['success' => false, 'message' => 'Employee ID required'], 400);
+                }
+                
+                $enrollmentIds = \App\Models\Insurance\InsuranceEnrollment::where('employee_id', $employeeId)->pluck('id')->toArray();
+                
+                if (empty($enrollmentIds)) {
+                    return response()->json(['success' => true, 'data' => []]);
+                }
+                
+                $claims = \App\Models\Insurance\InsuranceClaim::whereIn('enrollment_id', $enrollmentIds)
+                    ->orderBy('created_at', 'desc')
+                    ->limit(100)
+                    ->get();
+                
+                return response()->json(['success' => true, 'data' => $claims]);
+            } catch (\Exception $e) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            }
+        });
+        
         Route::post('claims/{id}/add-item', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'addItem']);
         Route::post('claims/{id}/upload-document', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'uploadDocument']);
         Route::post('claims/{id}/process-ocr', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'processOCR']);
         Route::post('claims/{id}/review', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'review']);
         Route::post('claims/{id}/approve', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'approve']);
         Route::post('claims/{id}/reject', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'reject']);
+        Route::post('claims/{id}/send-to-provider', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'markAsSentToProvider']);
         Route::post('claims/{id}/mark-as-paid', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'markAsPaid']);
+        Route::post('claims/{id}/send-to-payroll', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'sendToPayroll']);
         Route::get('claims/{id}/history', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'getHistory']);
         Route::post('claims/{id}/detect-anomalies', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'detectAnomalies']);
         

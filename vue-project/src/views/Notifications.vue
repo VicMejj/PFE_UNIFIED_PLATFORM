@@ -16,7 +16,7 @@ const notifications = useNotificationsStore()
 const selectedFilter = ref<'all' | 'unread'>('all')
 
 onMounted(() => {
-  notifications.fetchNotifications()
+  void notifications.fetchNotifications()
 })
 
 const filteredNotifications = computed(() => {
@@ -34,7 +34,7 @@ function variantFor(type: string) {
 }
 
 function openNotification(item: { id: string | number; action?: string }) {
-  notifications.markAsRead(item.id)
+  void notifications.markAsRead(item.id)
   if (item.action) {
     router.push(item.action)
   }

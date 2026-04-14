@@ -26,10 +26,10 @@ class InsuranceClaimDocumentController extends ApiController
     {
         $query = InsuranceClaimDocument::query();
         if ($search = $request->query('search')) {
-            $query->where('file_name', 'like', "%{$search}%");
+            $query->where('document_name', 'like', "%{$search}%");
         }
         if ($claimId = $request->query('claim_id')) {
-            $query->where('insurance_claim_id', $claimId);
+            $query->where('claim_id', $claimId);
         }
         return $this->successResponse($query->paginate());
     }
@@ -37,11 +37,17 @@ class InsuranceClaimDocumentController extends ApiController
     public function store(Request $request)
     {
         $data = $request->validate([
-            'insurance_claim_id' => 'required|exists:insurance_claims,id',
-            'file_name' => 'required|string|max:255',
+            'claim_id' => 'required|exists:insurance_claims,id',
+            'document_name' => 'nullable|string|max:255',
             'file_path' => 'required|string',
             'document_type' => 'nullable|string',
+            'file_size' => 'nullable|integer',
         ]);
+        
+        if (empty($data['document_name'])) {
+            $data['document_name'] = $data['document_type'] ?? 'document';
+        }
+        
         $document = InsuranceClaimDocument::create($data);
         return $this->successResponse($document, 'Insurance claim document created', 201);
     }

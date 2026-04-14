@@ -13,6 +13,13 @@ return new class extends Migration
     {
         Schema::create('warnings', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('employee_id')->constrained()->onDelete('cascade');
+            $table->date('warning_date')->nullable();
+            $table->string('warning_type');
+            $table->text('reason')->nullable();
+            $table->text('corrective_action')->nullable();
+            $table->text('remarks')->nullable();
+            $table->string('status')->default('active');
             $table->timestamps();
         });
     }

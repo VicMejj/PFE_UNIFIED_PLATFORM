@@ -1,4 +1,5 @@
 import { laravelApi } from '@/api/http'
+import { clearStoredAuth } from '@/utils/authStorage'
 
 /**
  * Extract data from Laravel's standardized response envelope.
@@ -20,11 +21,7 @@ export default {
       email,
       password
     })
-    const data = unwrapResponse(response)
-    if (data.token) {
-      localStorage.setItem('laravel_token', data.token)
-    }
-    return data
+    return unwrapResponse(response)
   },
 
   async register(name: string, email: string, password: string) {
@@ -42,11 +39,7 @@ export default {
       email,
       otp
     })
-    const data = unwrapResponse(response)
-    if (data.token) {
-      localStorage.setItem('laravel_token', data.token)
-    }
-    return data
+    return unwrapResponse(response)
   },
 
   async resendEmailOtp(email: string) {
@@ -74,7 +67,7 @@ export default {
       const response = await laravelApi.post('/core/auth/logout')
       return unwrapResponse(response)
     } finally {
-      localStorage.removeItem('laravel_token')
+      clearStoredAuth()
     }
   },
 
@@ -85,11 +78,7 @@ export default {
 
   async refresh() {
     const response = await laravelApi.post('/core/auth/refresh')
-    const data = unwrapResponse(response)
-    if (data.token) {
-      localStorage.setItem('laravel_token', data.token)
-    }
-    return data
+    return unwrapResponse(response)
   },
 
   async updateProfile(payload: { name?: string; email?: string; lang?: string }) {

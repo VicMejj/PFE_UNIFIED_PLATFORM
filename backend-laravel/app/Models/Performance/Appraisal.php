@@ -19,7 +19,7 @@ class Appraisal extends Model
     ];
 
     protected $casts = [
-        'rating' => 'decimal:5,2',
+        'rating' => 'float',
         'review_date' => 'date'
     ];
 

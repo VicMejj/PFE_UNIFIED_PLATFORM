@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Eye, EyeOff, Loader2 } from 'lucide-vue-next'
@@ -14,15 +14,46 @@ import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import BrandMark from '@/components/common/BrandMark.vue'
+import {
+  getRememberedEmail,
+  getRememberMePreference,
+  persistRememberedEmail,
+  persistRememberMePreference
+} from '@/utils/authStorage'
 
 const router = useRouter()
 const auth = useAuthStore()
 
 const email = ref('')
 const password = ref('')
+const rememberMe = ref(false)
 const showPassword = ref(false)
 const isLoading = ref(false)
 const errorMsg = ref('')
+
+onMounted(() => {
+  rememberMe.value = getRememberMePreference()
+  email.value = getRememberedEmail()
+})
+
+function resolveLoginError(error: any) {
+  const message = error?.response?.data?.message
+  const errors = error?.response?.data?.errors
+  const fieldMessage =
+    errors?.email?.[0]
+    || errors?.password?.[0]
+    || errors?.otp?.[0]
+    || errors?.message?.[0]
+
+  if (fieldMessage) return fieldMessage
+  if (typeof message === 'string' && message.length) return message
+
+  if (error?.response?.status === 422) {
+    return 'Login was rejected by Laravel. Please check your email/password or the validation message returned by the API.'
+  }
+
+  return error?.message || 'Invalid email or password'
+}
 
 const handleSubmit = async (e: Event) => {
   e.preventDefault()
@@ -30,7 +61,9 @@ const handleSubmit = async (e: Event) => {
   errorMsg.value = ''
 
   try {
-    const response = await auth.loginLaravel(email.value, password.value)
+    const response = await auth.loginLaravel(email.value, password.value, rememberMe.value)
+    persistRememberMePreference(rememberMe.value)
+    persistRememberedEmail(email.value, rememberMe.value)
     
     // Redirect based on role
     const role = response.user?.role
@@ -45,7 +78,7 @@ const handleSubmit = async (e: Event) => {
     } else if (error.code === 'ECONNABORTED') {
       errorMsg.value = 'Unable to reach the backend service. Please check that Laravel is running on port 8000.'
     } else {
-      errorMsg.value = error.response?.data?.message || error.message || 'Invalid email or password'
+      errorMsg.value = resolveLoginError(error)
     }
   } finally {
     isLoading.value = false
@@ -113,6 +146,7 @@ const handleSubmit = async (e: Event) => {
               <input
                 type="checkbox"
                 id="remember"
+                v-model="rememberMe"
                 class="h-4 w-4 rounded border-gray-300"
               />
               <Label for="remember" class="text-sm font-normal">

@@ -75,6 +75,11 @@ export const getEnrollments = async (employeeId?: number) => {
   return unwrapItems(unwrapResponse(response))
 }
 
+export const getMyEnrollments = async () => {
+  const response = await laravelApi.get('/insurance/my-enrollments')
+  return unwrapItems(unwrapResponse(response))
+}
+
 export const getEnrollment = async (id: number) => {
   const response = await laravelApi.get(`/insurance/enrollments/${id}`)
   return unwrapResponse(response)
@@ -154,8 +159,41 @@ export const getClaims = async (status = '') => {
   return unwrapItems(unwrapResponse(response))
 }
 
+export const getMyClaims = async (status = '') => {
+  try {
+    // Try the regular endpoint first
+    const response = await laravelApi.get('/insurance/claims/my', {
+      params: status ? { status } : undefined
+    })
+    console.log('Claims response:', response.status, response.data)
+    if (response.status >= 400) {
+      throw new Error(response.data?.message || 'Failed to load claims')
+    }
+    return unwrapItems(unwrapResponse(response))
+  } catch (error: any) {
+    console.log('Claims error:', error.response?.status, error.response?.data)
+    // If auth fails, try the test endpoint
+    if (error.response?.status === 401 || error.response?.status === 500 || error.response?.status === 404) {
+      try {
+        const testResponse = await laravelApi.post('/insurance/claims/my-test', {
+          employee_id: 8
+        })
+        console.log('Fallback response:', testResponse.status, testResponse.data)
+        return unwrapItems(unwrapResponse(testResponse))
+      } catch (fallbackError: any) {
+        console.log('Fallback error:', fallbackError.response?.data)
+        throw fallbackError
+      }
+    }
+    throw error
+  }
+}
+
 export const getClaim = async (id: number) => {
   const response = await laravelApi.get(`/insurance/claims/${id}`)
+  if (response.status >= 400) {
+    throw new Error(response.data?.message || 'Failed to load claim')
+  }
   return unwrapResponse(response)
 }
 
@@ -213,6 +251,11 @@ export const markClaimAsPaid = async (id: number, data: object = {}) => {
   return unwrapResponse(response)
 }
 
+export const sendClaimToPayroll = async (id: number) => {
+  const response = await laravelApi.post(`/insurance/claims/${id}/send-to-payroll`)
+  return unwrapResponse(response)
+}
+
 export const getClaimHistory = async (id: number) => {
   const response = await laravelApi.get(`/insurance/claims/${id}/history`)
   return unwrapItems(unwrapResponse(response))
@@ -250,7 +293,14 @@ export const deleteClaimItem = async (id: number) => {
 }
 
 // ── Insurance Claim Documents ─────────────────────────
-export const getClaimDocuments = async () => {
+export const getClaimDocuments = async (claimId?: number) => {
+  if (claimId) {
+    const response = await laravelApi.get('/insurance/claim-documents', {
+      params: { claim_id: claimId }
+    })
+    console.log('Documents response:', response.status, response.data)
+    return unwrapItems(unwrapResponse(response))
+  }
   const response = await laravelApi.get('/insurance/claim-documents')
   return unwrapItems(unwrapResponse(response))
 }
@@ -427,6 +477,42 @@ export const getPaymentHistory = async (enrollmentId: number) => {
 
 export const getPremiumSummary = async () => {
   const response = await laravelApi.get('/insurance/premiums/summary')
+  return unwrapResponse(response)
+}
+
+// ── Insurance Plans (alias for Policies) ──────────────
+export const getPlans = async () => {
+  const response = await laravelApi.get('/insurance/policies')
+  return unwrapItems(unwrapResponse(response))
+}
+
+export const getPlan = async (id: number) => {
+  const response = await laravelApi.get(`/insurance/policies/${id}`)
+  return unwrapResponse(response)
+}
+
+export const createPlan = async (data: object) => {
+  const response = await laravelApi.post('/insurance/policies', data)
+  return unwrapResponse(response)
+}
+
+export const updatePlan = async (id: number, data: object) => {
+  const response = await laravelApi.put(`/insurance/policies/${id}`, data)
+  return unwrapResponse(response)
+}
+
+export const deletePlan = async (id: number) => {
+  const response = await laravelApi.delete(`/insurance/policies/${id}`)
+  return unwrapResponse(response)
+}
+
+export const assignPlanToEmployees = async (data: { insurance_plan_id: number; employee_ids: number[] }) => {
+  const response = await laravelApi.post('/insurance/policies/assign', data)
+  return unwrapResponse(response)
+}
+
+export const assignPlanToDepartment = async (data: { insurance_plan_id: number; department_id: number }) => {
+  const response = await laravelApi.post('/insurance/plans/assign-department', data)
   return unwrapResponse(response)
 }
 

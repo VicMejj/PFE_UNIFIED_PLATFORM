@@ -11,6 +11,11 @@ class Designation extends Model
         'title',
         'code',
         'description',
+        'is_active',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
     ];
 
     public function employees()

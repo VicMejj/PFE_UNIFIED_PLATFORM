@@ -29,6 +29,7 @@ const isInitialized = ref(false)
 const errorMessage = ref('')
 const copiedId = ref<string | null>(null)
 const abortController = ref<AbortController | null>(null)
+const historyKey = `chatbot_messages_${authStore.user?.id ?? 'guest'}`
 
 const suggestions = [
   'Help me with employee data',
@@ -43,6 +44,11 @@ const canUseChatbot = computed(() => {
   const roles = authStore.user?.roles || []
   return roles.some((r: any) => ['admin', 'manager', 'rh', 'hr'].includes(r.name?.toLowerCase()))
 })
+
+const isNetworkFailure = (error: any) =>
+  error?.code === 'ERR_NETWORK' ||
+  error?.code === 'ECONNABORTED' ||
+  String(error?.message || '').toLowerCase().includes('connection refused')
 
 const messageGroups = computed(() => {
   const groups: Array<{ sender: 'USER' | 'BOT'; messages: ChatMessage[] }> = []
@@ -72,15 +78,34 @@ const initializeChat = async () => {
 
   localStorage.setItem('chatbot_session_id', sessionId.value)
 
-  // Add welcome message
-  messages.value.push({
-    id: uuidv4(),
-    sender: 'BOT',
-    text: `Welcome to Mejj AI Assistant! 👋\n\nI'm here to help you with:\n• Employee insights & turnover predictions\n• Optimal leave date recommendations\n• Loan risk assessments\n• HR analytics & reporting\n• Document processing & classification\n• Fraud detection\n\nHow can I assist you today?`,
-    timestamp: new Date(),
-    intent: 'greeting',
-    entities: []
-  })
+  try {
+    const history: any = await djangoAiApi.getChatHistory(sessionId.value)
+    const conversation = Array.isArray(history?.data) ? history.data[0] : history?.data?.[0]
+    const items = Array.isArray(conversation?.messages) ? conversation.messages : []
+    messages.value = items.map((item: any) => ({
+      id: String(item.id ?? uuidv4()),
+      sender: item.sender,
+      text: item.text,
+      timestamp: new Date(item.created_at || item.timestamp || new Date().toISOString()),
+      intent: item.intent,
+      entities: item.entities || [],
+      context: item.context
+    }))
+  } catch {
+    const cached = localStorage.getItem(historyKey)
+    messages.value = cached ? JSON.parse(cached) : []
+  }
+
+  if (!messages.value.length) {
+    messages.value.push({
+      id: uuidv4(),
+      sender: 'BOT',
+      text: `Welcome to Mejj AI Assistant! 👋\n\nI'm here to help you with:\n• Employee insights & turnover predictions\n• Optimal leave date recommendations\n• Loan risk assessments\n• HR analytics & reporting\n• Document processing & classification\n• Fraud detection\n\nHow can I assist you today?`,
+      timestamp: new Date(),
+      intent: 'greeting',
+      entities: []
+    })
+  }
 
   isInitialized.value = true
 }
@@ -136,10 +161,13 @@ const sendMessage = async () => {
       entities: response.entities || [],
       context: response.context
     })
+    localStorage.setItem(historyKey, JSON.stringify(messages.value))
   } catch (err: any) {
     if (err.name !== 'AbortError') {
       console.error('Chatbot error:', err)
-      errorMessage.value = err.response?.data?.detail || 'Unable to get response from chatbot.'
+      errorMessage.value = isNetworkFailure(err)
+        ? 'The Django AI service is offline right now, so this view is using local fallback behavior.'
+        : err.response?.data?.detail || 'Unable to get response from chatbot.'
       messages.value.push({
         id: uuidv4(),
         sender: 'BOT',
@@ -178,6 +206,7 @@ const stopGeneration = () => {
 const clearHistory = () => {
   if (window.confirm('Clear all chat history?')) {
     messages.value = messages.value.filter((m) => m.sender === 'BOT' && m.intent === 'greeting')
+    localStorage.setItem(historyKey, JSON.stringify(messages.value))
   }
 }
 

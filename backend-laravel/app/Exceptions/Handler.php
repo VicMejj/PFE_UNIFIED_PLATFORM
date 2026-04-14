@@ -14,6 +14,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Throwable;
 use PHPOpenSourceSaver\JWTAuth\Exceptions\TokenExpiredException;
+use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
 
 class Handler extends ExceptionHandler
 {
@@ -129,12 +130,21 @@ class Handler extends ExceptionHandler
                 'timestamp' => now()->toIso8601String(),
             ], Response::HTTP_UNAUTHORIZED);
         }
+        
+        // Handle JWT exceptions
+        if ($exception instanceof JWTException) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid token: ' . $exception->getMessage(),
+                'timestamp' => now()->toIso8601String(),
+            ], Response::HTTP_UNAUTHORIZED);
+        }
 
-        // Handle generic exceptions without leaking raw debug/database details to the frontend
+        // Generic fallback for JSON requests to ensure consistent and secure error messaging
         return response()->json([
             'success' => false,
-            'message' => 'Something went wrong. Please try again.',
-            'timestamp' => now()->toIso8601String(),
+            'message' => 'An unexpected server error occurred. Please try again later.',
+            'error' => config('app.debug') ? $exception->getMessage() : 'Server Error'
         ], Response::HTTP_INTERNAL_SERVER_ERROR);
     }
 }

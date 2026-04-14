@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Plus } from 'lucide-vue-next'
+import { FileDown, Plus } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import Card from '@/components/ui/Card.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
@@ -13,7 +13,7 @@ import Badge from '@/components/ui/Badge.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import { platformApi } from '@/api/laravel/platform'
-import { unwrapItems } from '@/api/http'
+import { isNetworkOrServerUnavailable, unwrapItems } from '@/api/http'
 
 const router = useRouter()
 const items = ref<any[]>([])
@@ -32,6 +32,7 @@ const isSavingNote = ref(false)
 const isUploadingAttachment = ref(false)
 const isAssigning = ref(false)
 const isDeleting = ref(false)
+const isDownloading = ref(false)
 const feedback = ref('')
 const errorMessage = ref('')
 
@@ -92,8 +93,9 @@ const fetchContracts = async () => {
     }))
     contractTypes.value = unwrapItems<any>(contractTypeData)
   } catch (err) {
-    console.error('Failed to fetch contracts', err)
-    errorMessage.value = 'Unable to load contracts.'
+    errorMessage.value = isNetworkOrServerUnavailable(err)
+      ? 'Laravel is unavailable right now, so contracts cannot be loaded.'
+      : 'Unable to load contracts.'
   } finally {
     isLoading.value = false
   }
@@ -210,7 +212,6 @@ const assignContract = async () => {
     await loadContractDetails(selectedContract.value.id)
     await fetchContracts()
   } catch (err: any) {
-    console.error('Failed to assign contract', err)
     errorMessage.value = err.response?.data?.message || 'Unable to assign this contract.'
   } finally {
     isAssigning.value = false
@@ -314,6 +315,27 @@ const getAttachmentUrl = (attachment: any) => {
   return attachment.url || attachment.file_url || attachment.path || attachment.file_path || ''
 }
 
+const downloadContract = async () => {
+  if (!selectedContract.value || selectedContract.value.status !== 'signed') return
+
+  isDownloading.value = true
+  try {
+    const blob = await platformApi.downloadContractPDF(selectedContract.value.id)
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `contract-${selectedContract.value.id}.pdf`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (err) {
+    errorMessage.value = (err as any)?.response?.data?.message || 'Unable to download the contract PDF.'
+  } finally {
+    isDownloading.value = false
+  }
+}
+
 onMounted(fetchContracts)
 </script>
 
@@ -344,9 +366,9 @@ onMounted(fetchContracts)
       <CardContent class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div class="space-y-2">
           <Label>Employee</Label>
-          <select v-model="form.employee_id" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-            <option value="">{{ hasEmployees ? 'Select employee' : 'No employees available' }}</option>
-            <option v-for="employee in employees" :key="employee.id" :value="String(employee.id)">{{ employee.display_name }}</option>
+          <select v-model="form.employee_id" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-slate-100 dark:bg-slate-900">
+            <option value="" class="bg-slate-900 text-slate-100">{{ hasEmployees ? 'Select employee' : 'No employees available' }}</option>
+            <option v-for="employee in employees" :key="employee.id" :value="String(employee.id)" class="bg-slate-900 text-slate-100">{{ employee.display_name }}</option>
           </select>
           <p v-if="!hasEmployees" class="text-xs text-amber-600 dark:text-amber-400">
             An employee profile must exist before a contract can be created.
@@ -354,17 +376,17 @@ onMounted(fetchContracts)
         </div>
         <div class="space-y-2">
           <Label>Contract Type</Label>
-          <select v-model="form.contract_type_id" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-            <option value="">Select type</option>
-            <option v-for="type in contractTypes" :key="type.id" :value="String(type.id)">{{ type.name }}</option>
+          <select v-model="form.contract_type_id" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-slate-100 dark:bg-slate-900">
+            <option value="" class="bg-slate-900 text-slate-100">Select type</option>
+            <option v-for="type in contractTypes" :key="type.id" :value="String(type.id)" class="bg-slate-900 text-slate-100">{{ type.name }}</option>
           </select>
         </div>
         <div class="space-y-2">
           <Label>Status</Label>
-          <select v-model="form.status" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-            <option value="draft">Draft</option>
-            <option value="pending">Pending</option>
-            <option value="expired">Expired</option>
+          <select v-model="form.status" class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-slate-100 dark:bg-slate-900">
+            <option value="draft" class="bg-slate-900 text-slate-100">Draft</option>
+            <option value="pending" class="bg-slate-900 text-slate-100">Pending</option>
+            <option value="expired" class="bg-slate-900 text-slate-100">Expired</option>
           </select>
         </div>
         <div class="space-y-2 md:col-span-2 xl:col-span-3">
@@ -377,7 +399,7 @@ onMounted(fetchContracts)
         </div>
         <div class="space-y-2">
           <Label>End Date</Label>
-          <Input v-model="form.end_date" type="date" />
+          <Input v-model="form.end_date" type="date" :min="form.start_date || undefined" :disabled="!form.start_date" />
         </div>
         <div class="space-y-2 md:col-span-2 xl:col-span-3">
           <Label>Notes</Label>
@@ -428,6 +450,13 @@ onMounted(fetchContracts)
             <p><strong>Verification Code:</strong> {{ selectedContract.verification_code || 'Not assigned yet' }}</p>
             <p><strong>Signing Deadline:</strong> {{ selectedContract.signing_deadline || 'Not set' }}</p>
             <p><strong>Notes:</strong> {{ selectedContract.notes || 'No notes available.' }}</p>
+
+            <div v-if="selectedContract.status === 'signed'" class="pt-2">
+              <Button size="sm" class="bg-emerald-600 hover:bg-emerald-700 text-white" :disabled="isDownloading" @click="downloadContract">
+                <FileDown class="w-4 h-4 mr-2" /> {{ isDownloading ? 'Generating...' : 'Download Signed PDF' }}
+              </Button>
+            </div>
+
             <div class="space-y-2 pt-3">
               <Label>Signing Deadline</Label>
               <Input v-model="assignmentForm.signing_deadline" type="date" />

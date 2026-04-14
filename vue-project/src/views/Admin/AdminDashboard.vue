@@ -3,12 +3,13 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Bell,
-  CalendarDays,
   CalendarRange,
+  Clock3,
   FileSignature,
   ShieldCheck,
   Users,
   Wallet,
+  ArrowRight,
 } from 'lucide-vue-next'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -16,7 +17,9 @@ import CardDescription from '@/components/ui/CardDescription.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import Button from '@/components/ui/Button.vue'
-import { platformApi, type EventItem } from '@/api/laravel/platform'
+import Badge from '@/components/ui/Badge.vue'
+import SmartCalendar from '@/components/common/SmartCalendar.vue'
+import { platformApi } from '@/api/laravel/platform'
 import { unwrapItems } from '@/api/http'
 
 const router = useRouter()
@@ -27,66 +30,16 @@ const leaves = ref<any[]>([])
 const paySlips = ref<any[]>([])
 const contracts = ref<any[]>([])
 const notifications = ref<any[]>([])
-const events = ref<EventItem[]>([])
+const attendanceRecords = ref<any[]>([])
+const attendanceStats = ref<any | null>(null)
 const isLoading = ref(true)
 
-const today = new Date()
-
-function normalizeDate(value?: string | null) {
-  if (!value) return null
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? null : parsed
-}
-
-function formatLongDate(value?: string | null) {
-  const parsed = normalizeDate(value)
-  if (!parsed) return 'Date not set'
-
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(parsed)
-}
-
-function formatMonthLabel(date: Date) {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    year: 'numeric',
-  }).format(date)
-}
-
-function formatWeekday(date: Date) {
-  return new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date)
-}
-
-function formatTime(value?: string | null) {
-  if (!value) return 'All day'
-
-  const directDate = normalizeDate(value)
-  if (directDate) {
-    return new Intl.DateTimeFormat('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(directDate)
-  }
-
-  const todayIso = new Date().toISOString().slice(0, 10)
-  const parsed = normalizeDate(`${todayIso}T${value}`)
-  if (!parsed) return value
-
-  return new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(parsed)
-}
-
-const dashboardStats = computed(() => dashboardHome.value?.statistics ?? {
+const dashboardStats = computed(() => ({
   total_employees: employees.value.length,
   active_employees: employees.value.filter((item) => item.is_active).length,
-  on_leave_employees: 0,
+  on_leave_employees: leaves.value.filter(l => String(l.status).toLowerCase() === 'approved').length,
   new_employees_this_month: 0,
-})
+}))
 
 const pendingLeavesCount = computed(() =>
   leaves.value.filter((item) => String(item.status ?? '').toLowerCase() === 'pending').length
@@ -96,154 +49,82 @@ const pendingPaySlipsCount = computed(() =>
   paySlips.value.filter((item) => String(item.status ?? '').toLowerCase() !== 'sent').length
 )
 
-const activeEvents = computed(() =>
-  events.value
-    .filter((item) => item.is_active !== false)
-    .sort((left, right) => {
-      const leftTime = normalizeDate(left.event_date)?.getTime() ?? Number.MAX_SAFE_INTEGER
-      const rightTime = normalizeDate(right.event_date)?.getTime() ?? Number.MAX_SAFE_INTEGER
-      return leftTime - rightTime
-    })
-)
-
-const upcomingEvents = computed(() => activeEvents.value.slice(0, 5))
-
 const summaryCards = computed(() => [
   {
     label: 'Employees',
     value: dashboardStats.value.total_employees,
-    description: `${dashboardStats.value.active_employees} active across the organization.`,
+    description: `${dashboardStats.value.active_employees} active members.`,
     icon: Users,
-    accent: 'bg-sky-500',
+    accent: 'bg-blue-500',
+    path: '/rh/employees'
   },
   {
     label: 'Leave Queue',
     value: pendingLeavesCount.value,
-    description: 'Requests currently waiting for review.',
+    description: 'Awaiting admin review.',
     icon: CalendarRange,
     accent: 'bg-amber-500',
+    path: '/rh/leaves'
   },
   {
     label: 'Payroll Actions',
     value: pendingPaySlipsCount.value,
-    description: 'Payslips still pending generation or send.',
+    description: 'Pending generation/sent.',
     icon: Wallet,
     accent: 'bg-emerald-500',
+    path: '/rh/payroll'
   },
   {
     label: 'Contracts',
     value: contracts.value.length,
-    description: 'Contract records ready for admin oversight.',
+    description: 'Awaiting oversight.',
     icon: FileSignature,
-    accent: 'bg-violet-500',
+    accent: 'bg-indigo-500',
+    path: '/rh/contracts'
   },
 ])
-
-const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-const calendarDays = computed(() => {
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
-  const startOffset = firstDay.getDay()
-  const cells: Array<{
-    key: string
-    dayNumber: number | null
-    isoDate: string | null
-    isToday: boolean
-    eventCount: number
-  }> = []
-
-  for (let i = 0; i < startOffset; i += 1) {
-    cells.push({
-      key: `empty-start-${i}`,
-      dayNumber: null,
-      isoDate: null,
-      isToday: false,
-      eventCount: 0,
-    })
-  }
-
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    const date = new Date(today.getFullYear(), today.getMonth(), day)
-    const isoDate = date.toISOString().slice(0, 10)
-    const eventCount = activeEvents.value.filter((item) => (item.event_date ?? '').slice(0, 10) === isoDate).length
-
-    cells.push({
-      key: isoDate,
-      dayNumber: day,
-      isoDate,
-      isToday: isoDate === new Date().toISOString().slice(0, 10),
-      eventCount,
-    })
-  }
-
-  while (cells.length % 7 !== 0) {
-    cells.push({
-      key: `empty-end-${cells.length}`,
-      dayNumber: null,
-      isoDate: null,
-      isToday: false,
-      eventCount: 0,
-    })
-  }
-
-  return cells
-})
 
 const priorityItems = computed(() => [
   {
-    title: 'Pending leave approvals',
+    title: 'Pending Approvals',
     value: pendingLeavesCount.value,
-    tone: pendingLeavesCount.value > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400',
-    description: pendingLeavesCount.value > 0
-      ? 'Managers and RH still have requests to review.'
-      : 'The leave queue is clear right now.',
+    tone: pendingLeavesCount.value > 0 ? 'text-amber-500' : 'text-emerald-500',
+    description: 'Leave requests needing immediate attention.',
   },
   {
-    title: 'New hires this month',
-    value: dashboardStats.value.new_employees_this_month,
-    tone: 'text-sky-600 dark:text-sky-400',
-    description: 'Fresh employee records created during the current month.',
-  },
-  {
-    title: 'Unread signals',
+    title: 'Active Alerts',
     value: notifications.value.length,
-    tone: 'text-violet-600 dark:text-violet-400',
-    description: 'Notifications that may need admin attention today.',
+    tone: 'text-indigo-500',
+    description: 'System signals requiring oversight.',
   },
 ])
 
+const recentAttendance = computed(() => attendanceRecords.value.slice(0, 5))
+
 onMounted(async () => {
   isLoading.value = true
-
   try {
-    const [
-      homeData,
-      employeeData,
-      leaveData,
-      paySlipData,
-      contractData,
-      notificationData,
-      eventData,
-    ] = await Promise.all([
+    const today = new Date().toISOString().slice(0, 10)
+    const [homeData, employeeData, leaveData, paySlipData, contractData, notificationData, attendanceData, attendanceStatsData] = await Promise.all([
       platformApi.getHomeDashboard(),
       platformApi.getEmployees(),
       platformApi.getLeaves(),
       platformApi.getPaySlips(),
       platformApi.getContracts(),
       platformApi.getNotifications(),
-      platformApi.getEvents(),
+      platformApi.getAttendanceRecords({ date_from: today, date_to: today }),
+      platformApi.getAttendanceStatistics({ date_from: today, date_to: today }),
     ])
-
     dashboardHome.value = homeData
     employees.value = unwrapItems(employeeData)
     leaves.value = unwrapItems(leaveData)
     paySlips.value = unwrapItems(paySlipData)
     contracts.value = unwrapItems(contractData)
     notifications.value = Array.isArray(notificationData) ? notificationData : []
-    events.value = unwrapItems(eventData)
+    attendanceRecords.value = unwrapItems(attendanceData)
+    attendanceStats.value = attendanceStatsData
   } catch (error) {
-    console.error('Unable to load admin dashboard data', error)
+    console.error('Incomplete admin dashboard sync', error)
   } finally {
     isLoading.value = false
   }
@@ -251,39 +132,46 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+  <div class="space-y-8 animate-in">
+    <!-- Premium Header -->
+    <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between px-1">
       <div>
-        <div class="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-300">
-          <ShieldCheck class="h-3.5 w-3.5" />
-          Admin Oversight
+        <div class="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/50 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-700 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-400">
+          <ShieldCheck class="h-3 w-3" />
+          Administrative Command
         </div>
-        <h1 class="mt-3 text-3xl font-bold text-slate-900 dark:text-white">Admin Command Center</h1>
-        <p class="mt-2 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
-          Live overview of employees, leave pressure, payroll activity, contracts, notifications, and upcoming events.
+        <h1 class="mt-4 text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">Elite Dashboard</h1>
+        <p class="mt-2 text-slate-500 dark:text-slate-400 font-medium">
+          Unified operational intelligence across people, payroll, and upcoming events.
         </p>
       </div>
 
-      <div class="flex flex-wrap gap-3">
-        <Button class="bg-blue-600 hover:bg-blue-700" @click="router.push('/rh/employees')">
-          Open Employees
+      <div class="flex items-center gap-3">
+        <Button variant="outline" @click="router.push('/settings')">
+          System Settings
         </Button>
-        <Button class="border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800" @click="router.push('/rh/leaves')">
-          Review Leave Queue
+        <Button class="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20" @click="router.push('/rh/employees')">
+          Manage Talent <ArrowRight class="ml-2 h-4 w-4" />
         </Button>
       </div>
     </div>
 
-    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <Card v-for="card in summaryCards" :key="card.label" class="overflow-hidden">
+    <!-- Quick Stats Grid -->
+    <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <Card 
+        v-for="card in summaryCards" 
+        :key="card.label" 
+        class="glass-card card-hover premium-shadow cursor-pointer"
+        @click="router.push(card.path)"
+      >
         <CardContent class="p-6">
-          <div class="flex items-start justify-between gap-4">
+          <div class="flex items-start justify-between">
             <div>
-              <div class="text-sm text-slate-500 dark:text-slate-400">{{ card.label }}</div>
-              <div class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{{ card.value }}</div>
-              <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ card.description }}</div>
+              <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ card.label }}</div>
+              <div class="mt-3 text-3xl font-black text-slate-900 dark:text-white">{{ card.value }}</div>
+              <div class="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">{{ card.description }}</div>
             </div>
-            <div :class="[card.accent, 'flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-lg shadow-slate-200/50 dark:shadow-slate-950/40']">
+            <div :class="[card.accent, 'flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-xl shadow-opacity-20']">
               <component :is="card.icon" class="h-5 w-5" />
             </div>
           </div>
@@ -291,156 +179,125 @@ onMounted(async () => {
       </Card>
     </div>
 
-    <div class="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>Operations Snapshot</CardTitle>
-          <CardDescription>The admin view for the teams and records that usually need attention first.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div v-if="isLoading" class="py-16 text-center text-sm text-slate-500 dark:text-slate-400">
-            Loading admin metrics...
-          </div>
-          <div v-else class="space-y-4">
-            <div
-              v-for="item in priorityItems"
-              :key="item.title"
-              class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/30"
-            >
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <div class="text-sm font-semibold text-slate-900 dark:text-white">{{ item.title }}</div>
-                  <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ item.description }}</div>
-                </div>
-                <div :class="[item.tone, 'text-2xl font-bold']">{{ item.value }}</div>
+    <!-- Main Content Layout -->
+    <div class="grid gap-8 xl:grid-cols-[1fr_380px]">
+      <div class="space-y-8">
+        <!-- Unified Calendar Section -->
+        <SmartCalendar class="glass-card premium-shadow rounded-3xl" />
+
+        <Card class="glass-card premium-shadow">
+          <CardHeader class="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle class="text-lg">Attendance Overview</CardTitle>
+              <CardDescription>Live check-ins for today</CardDescription>
+            </div>
+            <Clock3 class="h-4 w-4 text-sky-500" />
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div class="grid gap-3 md:grid-cols-4">
+              <div class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/50">
+                <div class="text-xs uppercase tracking-wide text-slate-400">Present</div>
+                <div class="mt-2 text-2xl font-black">{{ attendanceStats?.present_today ?? 0 }}</div>
+              </div>
+              <div class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/50">
+                <div class="text-xs uppercase tracking-wide text-slate-400">Late</div>
+                <div class="mt-2 text-2xl font-black">{{ attendanceStats?.late_today ?? 0 }}</div>
+              </div>
+              <div class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/50">
+                <div class="text-xs uppercase tracking-wide text-slate-400">Absent</div>
+                <div class="mt-2 text-2xl font-black">{{ attendanceStats?.absent_today ?? 0 }}</div>
+              </div>
+              <div class="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/50">
+                <div class="text-xs uppercase tracking-wide text-slate-400">Leave</div>
+                <div class="mt-2 text-2xl font-black">{{ attendanceStats?.on_leave_today ?? 0 }}</div>
               </div>
             </div>
 
-            <div class="grid gap-4 lg:grid-cols-2">
-              <div class="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
-                <div class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-                  <Bell class="h-4 w-4 text-violet-500" />
-                  Notifications
-                </div>
-                <div class="mt-3 space-y-3">
-                  <div
-                    v-for="notice in notifications.slice(0, 3)"
-                    :key="notice.id"
-                    class="rounded-xl bg-slate-50 px-3 py-3 text-sm dark:bg-slate-900/60"
-                  >
-                    <div class="font-medium text-slate-900 dark:text-white">{{ notice.title || notice.message }}</div>
-                    <div class="mt-1 text-slate-500 dark:text-slate-400">{{ notice.message }}</div>
-                  </div>
-                  <div v-if="!notifications.length" class="rounded-xl bg-slate-50 px-3 py-6 text-center text-sm text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
-                    No notifications waiting right now.
-                  </div>
-                </div>
-              </div>
-
-              <div class="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
-                <div class="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-                  <CalendarDays class="h-4 w-4 text-sky-500" />
-                  Upcoming events
-                </div>
-                <div class="mt-3 space-y-3">
-                  <div
-                    v-for="event in upcomingEvents"
-                    :key="event.id"
-                    class="rounded-xl bg-slate-50 px-3 py-3 dark:bg-slate-900/60"
-                  >
-                    <div class="font-medium text-slate-900 dark:text-white">{{ event.title || event.name || 'Untitled event' }}</div>
-                    <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                      {{ formatLongDate(event.event_date) }} at {{ formatTime(event.start_time) }}
-                    </div>
-                    <div v-if="event.location" class="mt-1 text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                      {{ event.location }}
-                    </div>
-                  </div>
-                  <div v-if="!upcomingEvents.length" class="rounded-xl bg-slate-50 px-3 py-6 text-center text-sm text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
-                    No upcoming events scheduled yet.
-                  </div>
-                </div>
-              </div>
+            <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/60">
+                  <tr>
+                    <th class="px-4 py-3">Employee</th>
+                    <th class="px-4 py-3">Date</th>
+                    <th class="px-4 py-3">Check-in</th>
+                    <th class="px-4 py-3">Check-out</th>
+                    <th class="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+                  <tr v-for="record in recentAttendance" :key="record.id">
+                    <td class="px-4 py-3 font-medium">{{ record.employee?.name || record.employee?.full_name || `Employee #${record.employee_id}` }}</td>
+                    <td class="px-4 py-3">{{ record.timesheet_date || record.date || 'N/A' }}</td>
+                    <td class="px-4 py-3">{{ record.check_in || '—' }}</td>
+                    <td class="px-4 py-3">{{ record.check_out || '—' }}</td>
+                    <td class="px-4 py-3">
+                      <Badge variant="secondary">{{ record.status }}</Badge>
+                    </td>
+                  </tr>
+                  <tr v-if="!recentAttendance.length">
+                    <td colspan="5" class="px-4 py-8 text-center text-slate-500">No attendance records for today.</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
-      <Card class="overflow-hidden">
-        <CardHeader>
-          <CardTitle>Events Calendar</CardTitle>
-          <CardDescription>{{ formatMonthLabel(today) }} with highlighted event days and a quick schedule list.</CardDescription>
-        </CardHeader>
-        <CardContent class="space-y-5">
-          <div class="grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-            <div v-for="day in dayHeaders" :key="day">{{ day }}</div>
-          </div>
-
-          <div class="grid grid-cols-7 gap-2">
-            <div
-              v-for="cell in calendarDays"
-              :key="cell.key"
-              :class="[
-                'min-h-[74px] rounded-2xl border p-2 transition-colors',
-                cell.dayNumber
-                  ? 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'
-                  : 'border-transparent bg-slate-50/70 dark:bg-slate-950/20',
-                cell.isToday ? 'ring-2 ring-blue-500/70' : '',
-              ]"
-            >
-              <template v-if="cell.dayNumber">
-                <div class="flex items-start justify-between gap-2">
-                  <span class="text-sm font-semibold text-slate-900 dark:text-white">{{ cell.dayNumber }}</span>
-                  <span
-                    v-if="cell.eventCount"
-                    class="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white"
-                  >
-                    {{ cell.eventCount }}
-                  </span>
-                </div>
-                <div v-if="cell.eventCount" class="mt-4 h-1.5 rounded-full bg-blue-100 dark:bg-blue-900/50">
-                  <div
-                    class="h-1.5 rounded-full bg-blue-600"
-                    :style="{ width: `${Math.min(100, 28 * cell.eventCount)}%` }"
-                  />
-                </div>
-              </template>
+      <div class="space-y-8">
+        <!-- Ops Overview Card -->
+        <Card class="glass-card border-none premium-shadow bg-blue-600/5 dark:bg-blue-500/5">
+          <CardHeader class="pb-2">
+            <CardTitle class="text-lg">Ops Overview</CardTitle>
+            <CardDescription>Live attention signals</CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <div v-if="isLoading" class="py-12 flex justify-center">
+              <div class="h-6 w-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
-          </div>
+            <div v-else v-for="item in priorityItems" :key="item.title" class="group rounded-2xl border border-blue-100 bg-white/60 p-4 dark:border-blue-900/20 dark:bg-slate-900/40 transition-all hover:bg-white dark:hover:bg-slate-900">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wide group-hover:text-blue-500 transition-colors">{{ item.title }}</span>
+                <span :class="[item.tone, 'text-2xl font-black']">{{ item.value }}</span>
+              </div>
+              <p class="text-xs text-slate-500 dark:text-slate-400">{{ item.description }}</p>
+            </div>
+          </CardContent>
+        </Card>
 
-          <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/30">
-            <div class="mb-3 text-sm font-semibold text-slate-900 dark:text-white">This month's schedule</div>
+        <!-- Notifications Card -->
+        <Card class="glass-card premium-shadow">
+          <CardHeader class="flex flex-row items-center justify-between space-y-0">
+             <div>
+               <CardTitle class="text-lg">Inbox</CardTitle>
+               <CardDescription>Latest system activities</CardDescription>
+             </div>
+             <Bell class="h-4 w-4 text-violet-500" />
+          </CardHeader>
+          <CardContent>
             <div class="space-y-3">
-              <div
-                v-for="event in upcomingEvents"
-                :key="`schedule-${event.id}`"
-                class="flex items-start gap-3 rounded-xl bg-white px-3 py-3 shadow-sm dark:bg-slate-900"
-              >
-                <div class="flex w-14 shrink-0 flex-col items-center rounded-xl bg-blue-50 px-2 py-2 text-center dark:bg-blue-950/40">
-                  <div class="text-[11px] font-semibold uppercase tracking-wide text-blue-500">
-                    {{ normalizeDate(event.event_date) ? formatWeekday(normalizeDate(event.event_date)!) : 'TBD' }}
-                  </div>
-                  <div class="text-lg font-bold text-blue-700 dark:text-blue-300">
-                    {{ normalizeDate(event.event_date)?.getDate() ?? '--' }}
-                  </div>
-                </div>
-                <div class="min-w-0">
-                  <div class="font-medium text-slate-900 dark:text-white">{{ event.title || event.name || 'Untitled event' }}</div>
-                  <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    {{ formatLongDate(event.event_date) }} at {{ formatTime(event.start_time) }}
-                  </div>
-                  <div v-if="event.description" class="mt-1 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">
-                    {{ event.description }}
-                  </div>
-                </div>
+              <div v-for="notice in notifications.slice(0, 4)" :key="notice.id" class="relative pl-4 before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:rounded-full before:bg-blue-500">
+                <div class="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">{{ notice.title || 'System Update' }}</div>
+                <div class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">{{ notice.message }}</div>
               </div>
-              <div v-if="!upcomingEvents.length" class="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
-                Add company events and they will appear here.
+              <div v-if="!notifications.length" class="py-20 text-center">
+                <Badge variant="secondary" class="font-bold opacity-40">No pending signals</Badge>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+            <div v-if="notifications.length" class="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="ghost" class="w-full text-xs font-bold text-blue-500 hover:text-blue-600" @click="router.push('/rh/notifications')">
+                View All Signals
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.glass-card {
+  @apply bg-white/70 dark:bg-slate-950/60 backdrop-blur-xl border border-white/40 dark:border-slate-800/50;
+}
+</style>

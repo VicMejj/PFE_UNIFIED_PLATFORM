@@ -6,6 +6,7 @@ use App\Models\Employee\Employee;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
+use App\Models\Leave\LeaveAttachment;
 
 class Leave extends Model
 {
@@ -14,6 +15,7 @@ class Leave extends Model
         'leave_type_id',
         'start_date',
         'end_date',
+        'duration_type',
         'days_requested',
         'total_days',
         'approval_probability',
@@ -23,7 +25,7 @@ class Leave extends Model
         'policy_violations',
         'approved_by',
         'approval_date',
-        'rejection_reason'
+        'rejection_reason',
     ];
 
     protected $casts = [
@@ -48,6 +50,11 @@ class Leave extends Model
     public function approvedBy()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function attachments()
+    {
+        return $this->hasMany(LeaveAttachment::class);
     }
 
     public function scopePending($query)

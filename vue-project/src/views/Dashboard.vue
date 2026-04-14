@@ -6,13 +6,13 @@ import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import CardDescription from '@/components/ui/CardDescription.vue'
 import CardContent from '@/components/ui/CardContent.vue'
+import SmartCalendar from '@/components/common/SmartCalendar.vue'
 import { platformApi } from '@/api/laravel/platform'
 import { unwrapItems } from '@/api/http'
 
 const employees = ref<any[]>([])
 const leaves = ref<any[]>([])
 const paySlips = ref<any[]>([])
-const events = ref<any[]>([])
 const isLoading = ref(true)
 
 const stats = computed(() => [
@@ -32,23 +32,20 @@ const recentActivities = computed(() =>
   }))
 )
 
-const upcomingEvents = computed(() => events.value.slice(0, 3))
 const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase()
 
 onMounted(async () => {
   isLoading.value = true
   try {
-    const [employeeData, leaveData, paySlipData, eventData] = await Promise.all([
+    const [employeeData, leaveData, paySlipData] = await Promise.all([
       platformApi.getEmployees(),
       platformApi.getLeaves(),
       platformApi.getPaySlips(),
-      platformApi.getEvents(),
     ])
 
     employees.value = unwrapItems(employeeData)
     leaves.value = unwrapItems(leaveData)
     paySlips.value = unwrapItems(paySlipData)
-    events.value = unwrapItems(eventData)
   } catch (error) {
     console.error('Unable to load dashboard data', error)
   } finally {
@@ -95,7 +92,7 @@ onMounted(async () => {
     <!-- Main Content Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Recent Activities -->
-      <Card class="lg:col-span-2">
+      <Card class="lg:col-span-1">
         <CardHeader>
           <CardTitle>Recent Activities</CardTitle>
           <CardDescription>Latest updates from your team</CardDescription>
@@ -118,24 +115,14 @@ onMounted(async () => {
                 </div>
                 <div>
                   <p class="text-sm text-gray-900 dark:text-white">
-                    <span class="font-medium">{{ activity.employee }}</span>
-                    {{ activity.action }}
-                  </p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ activity.time }}
+                    <span class="font-medium text-xs">{{ activity.employee }}</span>
+                    <span class="text-xs block text-gray-500">{{ activity.action }}</span>
                   </p>
                 </div>
               </div>
-              <span
-                :class="[
-                  'px-3 py-1 rounded-full text-xs capitalize',
-                  String(activity.status).toLowerCase() === 'pending'
-                    ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
-                    : 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-                ]"
-              >
+              <Badge :variant="String(activity.status).toLowerCase() === 'pending' ? 'warning' : 'success'">
                 {{ String(activity.status).replace(/_/g, ' ') }}
-              </span>
+              </Badge>
             </div>
             <div v-if="!isLoading && !recentActivities.length" class="rounded-lg border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
               No recent activity is available.
@@ -144,37 +131,10 @@ onMounted(async () => {
         </CardContent>
       </Card>
 
-      <!-- Upcoming Events -->
-      <Card>
-        <CardHeader>
-          <CardTitle>Upcoming Events</CardTitle>
-          <CardDescription>What's on your calendar</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div class="space-y-4">
-            <div v-if="isLoading" class="py-10 text-center text-sm text-slate-500 dark:text-slate-400">
-              Loading events...
-            </div>
-            <div
-              v-for="event in upcomingEvents"
-              :key="event.id"
-              class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg"
-            >
-              <h4 class="font-medium text-gray-900 dark:text-white">
-                {{ event.title || event.name || 'Untitled event' }}
-              </h4>
-              <div class="flex items-center justify-between mt-2">
-                <p class="text-sm text-gray-600 dark:text-gray-400">
-                  {{ event.event_date || 'Date not set' }}
-                </p>
-              </div>
-            </div>
-            <div v-if="!isLoading && !upcomingEvents.length" class="rounded-lg border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-              No events are scheduled.
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <!-- Smart Calendar -->
+      <div class="lg:col-span-2">
+        <SmartCalendar />
+      </div>
     </div>
   </div>
 </template>

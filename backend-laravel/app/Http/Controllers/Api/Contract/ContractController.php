@@ -12,6 +12,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Response;
 
 class ContractController extends ApiController
 {
@@ -87,7 +89,7 @@ class ContractController extends ApiController
     public function show($id)
     {
         $this->expireDueContracts();
-        $contract = Contract::with('employee', 'contractType', 'attachments', 'comments', 'notes')->findOrFail($id);
+        $contract = Contract::with('employee.department', 'employee.designation', 'contractType', 'attachments', 'comments', 'notes')->findOrFail($id);
         return $this->successResponse($contract, 'Contract retrieved successfully');
     }
 
@@ -429,7 +431,7 @@ class ContractController extends ApiController
      */
     public function download(Request $request, $id)
     {
-        $contract = Contract::with('employee')->findOrFail($id);
+        $contract = Contract::with(['employee.department', 'employee.designation', 'contractType'])->findOrFail($id);
 
         $canAccess = false;
         $currentUser = auth()->user();
@@ -437,7 +439,7 @@ class ContractController extends ApiController
         if ($currentUser) {
             $currentUserId = $currentUser->id;
             $isEmployeeOwner = $contract->employee_id === $currentUserId || optional($contract->employee)->user_id === $currentUserId;
-            $canAccess = $isEmployeeOwner || $currentUser->hasRole(['admin', 'rh_manager', 'manager']);
+            $canAccess = $isEmployeeOwner || $currentUser->hasRole(['admin', 'rh', 'rh_manager', 'manager']);
         }
 
         if (! $canAccess && ($request->filled('token') || $request->filled('verification_code'))) {
@@ -462,83 +464,19 @@ class ContractController extends ApiController
             return $this->errorResponse('Contract must be signed to download', 400);
         }
 
-        // For now, return a simple PDF. In production, use a proper PDF library
-        $pdfContent = $this->generateContractPdf($contract);
+        $employee = $contract->employee;
+        $companyName = config('app.company_name', config('app.name', 'Your Company'));
 
-        return response($pdfContent, 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="contract-' . $contract->id . '.pdf"',
-        ]);
-    }
+        $pdf = Pdf::loadView('contracts.contract-pdf', compact(
+            'contract',
+            'employee',
+            'companyName'
+        ))
+        ->setPaper('a4', 'portrait')
+        ->setOption('defaultFont', 'DejaVu Sans');
 
-    protected function generateContractPdf(Contract $contract): string
-    {
-        // Simple PDF content. Replace with proper PDF generation library
-        $content = "%PDF-1.4\n";
-        $content .= "1 0 obj\n";
-        $content .= "<<\n";
-        $content .= "/Type /Catalog\n";
-        $content .= "/Pages 2 0 R\n";
-        $content .= ">>\n";
-        $content .= "endobj\n";
-        $content .= "2 0 obj\n";
-        $content .= "<<\n";
-        $content .= "/Type /Pages\n";
-        $content .= "/Kids [3 0 R]\n";
-        $content .= "/Count 1\n";
-        $content .= ">>\n";
-        $content .= "endobj\n";
-        $content .= "3 0 obj\n";
-        $content .= "<<\n";
-        $content .= "/Type /Page\n";
-        $content .= "/Parent 2 0 R\n";
-        $content .= "/MediaBox [0 0 612 792]\n";
-        $content .= "/Contents 4 0 R\n";
-        $content .= "/Resources << /Font << /F1 5 0 R >> >>\n";
-        $content .= ">>\n";
-        $content .= "endobj\n";
-        $content .= "4 0 obj\n";
-        $content .= "<<\n";
-        $content .= "/Length 200\n";
-        $content .= ">>\n";
-        $content .= "stream\n";
-        $content .= "BT\n";
-        $content .= "/F1 12 Tf\n";
-        $content .= "50 750 Td\n";
-        $content .= "(Contract #" . $contract->id . ") Tj\n";
-        $content .= "0 -20 Td\n";
-        $content .= "(Employee: " . ($contract->employee?->name ?? 'N/A') . ") Tj\n";
-        $content .= "0 -20 Td\n";
-        $content .= "(Status: Signed) Tj\n";
-        $content .= "0 -20 Td\n";
-        $content .= "(Signed on: " . ($contract->signed_at ?? 'N/A') . ") Tj\n";
-        $content .= "ET\n";
-        $content .= "endstream\n";
-        $content .= "endobj\n";
-        $content .= "5 0 obj\n";
-        $content .= "<<\n";
-        $content .= "/Type /Font\n";
-        $content .= "/Subtype /Type1\n";
-        $content .= "/BaseFont /Helvetica\n";
-        $content .= ">>\n";
-        $content .= "endobj\n";
-        $content .= "xref\n";
-        $content .= "0 6\n";
-        $content .= "0000000000 65535 f \n";
-        $content .= "0000000009 00000 n \n";
-        $content .= "0000000058 00000 n \n";
-        $content .= "0000000115 00000 n \n";
-        $content .= "0000000274 00000 n \n";
-        $content .= "0000000487 00000 n \n";
-        $content .= "trailer\n";
-        $content .= "<<\n";
-        $content .= "/Size 6\n";
-        $content .= "/Root 1 0 R\n";
-        $content .= ">>\n";
-        $content .= "startxref\n";
-        $content .= "577\n";
-        $content .= "%%EOF\n";
+        $filename = "contract-{$contract->id}-" . Str::slug($contract->contract_name) . ".pdf";
 
-        return $content;
+        return $pdf->download($filename);
     }
 }

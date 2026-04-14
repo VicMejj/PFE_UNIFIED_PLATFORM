@@ -30,12 +30,13 @@ class InsuranceStatisticController extends ApiController
                 'pending_claims' => $claimModel::where('status', 'pending')->count(),
                 'approved_claims' => $claimModel::where('status', 'approved')->count(),
                 'rejected_claims' => $claimModel::where('status', 'rejected')->count(),
-                'total_premium_collected' => $enrollmentModel::sum('premium_amount'),
-                'total_claims_paid' => $claimModel::where('status', 'approved')->sum('amount_claimed'),
+                'total_premium_collected' => (float) $enrollmentModel::sum('premium_amount'),
+                'total_claims_paid' => (float) $claimModel::where('status', 'approved')->sum('claimed_amount'),
             ];
 
             return $this->successResponse($overview, 'Insurance overview retrieved successfully');
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Insurance Stats Error: ' . $e->getMessage());
             return $this->successResponse([
                 'total_providers' => 0,
                 'total_enrollments' => 0,
@@ -47,7 +48,7 @@ class InsuranceStatisticController extends ApiController
                 'rejected_claims' => 0,
                 'total_premium_collected' => 0,
                 'total_claims_paid' => 0,
-            ], 'Insurance overview fallback returned');
+            ], 'Insurance overview fallback returned due to error');
         }
     }
 
@@ -80,17 +81,18 @@ class InsuranceStatisticController extends ApiController
                 $amount = $claimModel::whereYear('created_at', $date->year)
                                       ->whereMonth('created_at', $date->month)
                                       ->where('status', 'approved')
-                                      ->sum('amount_claimed');
+                                      ->sum('claimed_amount');
 
                 $trends[] = [
                     'month' => $date->format('Y-m'),
                     'claims_count' => $count,
-                    'amount_claimed' => $amount,
+                    'amount_claimed' => (float) $amount,
                 ];
             }
 
             return $this->successResponse($trends, 'Claims trends retrieved successfully');
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Insurance Trends Error: ' . $e->getMessage());
             return $this->successResponse([], 'Claims trends fallback returned');
         }
     }

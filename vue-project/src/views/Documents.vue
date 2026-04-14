@@ -56,6 +56,65 @@ const getFraudRiskLabel = (score: number) => {
   return 'High Risk'
 }
 
+const normalizeClassification = (classification: any): ClassificationResult => {
+  const confidenceRaw = Number(
+    classification?.confidence ??
+    classification?.confidence_score ??
+    classification?.score ??
+    0
+  )
+  const confidence = Number.isFinite(confidenceRaw)
+    ? (confidenceRaw > 1 ? confidenceRaw / 100 : confidenceRaw)
+    : 0
+
+  return {
+    category:
+      classification?.category ??
+      classification?.document_category ??
+      classification?.document_type ??
+      'Unknown',
+    confidence: Math.max(0, Math.min(1, confidence)),
+    medical_specialty: classification?.medical_specialty ?? classification?.specialty,
+  }
+}
+
+const normalizeOcr = (ocr: any): OCRResult => {
+  if (!ocr || typeof ocr !== 'object') {
+    return { extracted_data: {}, raw_text: 'No text extracted' }
+  }
+
+  const extractedData =
+    ocr.extracted_data ??
+    ocr.data ??
+    {
+      provider_name: ocr.provider_name,
+      service_date: ocr.service_date,
+      total_amount: ocr.total_amount,
+      invoice_number: ocr.invoice_number,
+      contact_email: ocr.contact_email,
+    }
+
+  const cleanedData = Object.fromEntries(
+    Object.entries(extractedData || {}).filter(([, value]) => value !== undefined && value !== null && value !== '')
+  ) as Record<string, string | number>
+
+  return {
+    extracted_data: cleanedData,
+    raw_text: ocr.raw_text ?? ocr.text ?? 'No text extracted',
+  }
+}
+
+const normalizeFraud = (fraud: any): FraudResult | null => {
+  if (!fraud || typeof fraud !== 'object') return null
+  const scoreRaw = Number(fraud.fraud_score ?? fraud.score ?? 0)
+  const score = Number.isFinite(scoreRaw) ? (scoreRaw > 1 ? scoreRaw / 100 : scoreRaw) : 0
+  return {
+    fraud_score: Math.max(0, Math.min(1, score)),
+    risk_tier: fraud.risk_tier ?? fraud.risk_level ?? 'unknown',
+    flags: Array.isArray(fraud.flags) ? fraud.flags : [],
+  }
+}
+
 const handleFileSelect = (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
@@ -78,38 +137,34 @@ const processDocument = async () => {
 
   try {
     // Step 1: Classify document
-    const classification = (await djangoAiApi.classifyDocument(uploadedFile.value)) as ClassificationResult
+    const classification = normalizeClassification(await djangoAiApi.classifyDocument(uploadedFile.value))
     feedback.value = `Document classified as: ${classification.category}`
 
     // Step 2: Extract text via OCR
-    const ocr = (await djangoAiApi.processOCR(uploadedFile.value)) as OCRResult
+    const ocr = normalizeOcr(await djangoAiApi.processOCR(uploadedFile.value))
     feedback.value = `Extracted ${Object.keys(ocr.extracted_data || {}).length} data fields`
 
     // Step 3: Detect fraud (for insurance documents)
     let fraud_result: FraudResult | null = null
     if (classification.category?.includes('Invoice') || classification.category?.includes('Claim')) {
-      const fraudData = (await djangoAiApi.detectFraud({
+      const fraudData = normalizeFraud(await djangoAiApi.detectFraud({
         claim_amount: parseFloat(String(ocr.extracted_data?.amount ?? 0)),
         claims_30_days: 1,
         days_since_last_claim: 30,
         provider_id: 'auto'
-      })) as FraudResult
+      }))
       fraud_result = fraudData
-      feedback.value = `Fraud analysis: ${getFraudRiskLabel(fraud_result.fraud_score)}`
+      feedback.value = `Fraud analysis: ${getFraudRiskLabel(fraud_result?.fraud_score ?? 0)}`
     }
 
     // Compile results
     processingResults.value = {
       filename: fileName.value,
       timestamp: new Date(),
-      classification: {
-        category: classification.category,
-        confidence: classification.confidence,
-        medical_specialty: classification.medical_specialty
-      },
+      classification,
       ocr: {
         extracted_data: ocr.extracted_data || {},
-        raw_text: ocr.raw_text ? ocr.raw_text.substring(0, 200) : 'No text extracted'
+        raw_text: (ocr.raw_text || 'No text extracted').substring(0, 200)
       },
       fraud: fraud_result
     }
@@ -129,7 +184,13 @@ const processDocument = async () => {
 onMounted(async () => {
   try {
     const response: any = await insuranceApi.getClaimDocuments()
-    documents.value = (response.data || []).slice(0, 10)
+    documents.value = ((response.data || response || []) as any[]).slice(0, 10).map((doc: any) => ({
+      ...doc,
+      classification: normalizeClassification(doc.classification ?? doc),
+      ocr: normalizeOcr(doc.ocr ?? doc),
+      fraud: normalizeFraud(doc.fraud ?? doc.fraud_result ?? doc.fraud_analysis),
+      timestamp: doc.timestamp ? new Date(doc.timestamp) : new Date(doc.created_at || Date.now())
+    }))
   } catch (err) {
     console.error('Failed to fetch documents', err)
   }

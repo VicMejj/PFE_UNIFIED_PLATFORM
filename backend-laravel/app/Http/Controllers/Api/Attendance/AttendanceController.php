@@ -4,8 +4,9 @@ namespace App\Http\Controllers\Api\Attendance;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Attendance\TimeSheet;
-use App\Models\Employee;
+use App\Models\Employee\Employee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 
@@ -19,9 +20,15 @@ class AttendanceController extends ApiController
      */
     public function index(Request $request)
     {
-        $query = TimeSheet::query();
+        $query = TimeSheet::query()->with('employee');
 
-        if ($request->has('employee_id')) {
+        if (! $this->canManageAttendance()) {
+            $employeeIds = Employee::query()
+                ->where('user_id', auth()->id())
+                ->pluck('id');
+
+            $query->whereIn('employee_id', $employeeIds);
+        } elseif ($request->has('employee_id')) {
             $query->where('employee_id', $request->employee_id);
         }
 
@@ -34,10 +41,12 @@ class AttendanceController extends ApiController
         }
 
         if ($request->has('status')) {
-            $query->where('status', $request->status);
+            if (Schema::hasColumn('time_sheets', 'status')) {
+                $query->where('status', $request->status);
+            }
         }
 
-        $records = $query->with('employee')->orderBy('date', 'desc')->paginate(20);
+        $records = $query->orderBy('date', 'desc')->paginate(20);
 
         return $this->successResponse($records, 'Attendance records retrieved successfully');
     }
@@ -64,6 +73,13 @@ class AttendanceController extends ApiController
         }
 
         // Check if attendance already exists for this date and employee
+        $resolvedEmployeeIds = $this->resolveAccessibleEmployeeIds();
+        if (! $this->canManageAttendance()) {
+            if (! in_array((int) $request->employee_id, $resolvedEmployeeIds, true)) {
+                return $this->forbiddenResponse('You are not allowed to record attendance for this employee.');
+            }
+        }
+
         $existing = TimeSheet::where('employee_id', $request->employee_id)
             ->whereDate('date', $request->date)
             ->first();
@@ -72,14 +88,34 @@ class AttendanceController extends ApiController
             return $this->errorResponse('Attendance already recorded for this date', 409);
         }
 
-        $attendance = TimeSheet::create([
+        $hoursWorked = null;
+        if ($request->filled(['check_in', 'check_out'])) {
+            $in = Carbon::createFromFormat('H:i', $request->check_in);
+            $out = Carbon::createFromFormat('H:i', $request->check_out);
+            if ($out->greaterThan($in)) {
+                $hoursWorked = round($in->diffInMinutes($out) / 60, 2);
+            }
+        }
+
+        $attendanceData = [
             'employee_id' => $request->employee_id,
+            'date' => $request->date,
             'check_in' => $request->check_in,
             'check_out' => $request->check_out,
-            'date' => $request->date,
-            'status' => $request->status,
+            'work_hours' => $hoursWorked,
+            'overtime_hours' => 0,
             'notes' => $request->notes,
-        ]);
+        ];
+
+        if (Schema::hasColumn('time_sheets', 'status')) {
+            $attendanceData['status'] = $request->status;
+        }
+
+        $attendance = TimeSheet::create($attendanceData);
+
+        if (! Schema::hasColumn('time_sheets', 'status')) {
+            $attendance->setAttribute('status', $request->status);
+        }
 
         return $this->successResponse($attendance, 'Attendance recorded successfully', 201);
     }
@@ -106,6 +142,9 @@ class AttendanceController extends ApiController
     public function update(Request $request, $id)
     {
         $attendance = TimeSheet::findOrFail($id);
+        if (! $this->canManageAttendance() && ! in_array((int) $attendance->employee_id, $this->resolveAccessibleEmployeeIds(), true)) {
+            return $this->forbiddenResponse('You are not allowed to update this attendance record.');
+        }
 
         $validator = Validator::make($request->all(), [
             'check_in' => 'sometimes|date_format:H:i',
@@ -118,7 +157,34 @@ class AttendanceController extends ApiController
             return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
-        $attendance->update($request->only(['check_in', 'check_out', 'status', 'notes']));
+        $updates = [];
+        if ($request->filled('check_in')) {
+            $updates['check_in'] = $request->check_in;
+        }
+
+        if ($request->filled('check_out') || $request->has('check_out')) {
+            $updates['check_out'] = $request->check_out;
+        }
+
+        if ($request->filled('check_in') && $request->filled('check_out')) {
+            $in = Carbon::createFromFormat('H:i', $request->check_in);
+            $out = Carbon::createFromFormat('H:i', $request->check_out);
+            if ($out->greaterThan($in)) {
+                $updates['work_hours'] = round($in->diffInMinutes($out) / 60, 2);
+            }
+        }
+
+        if ($request->has('status')) {
+            if (Schema::hasColumn('time_sheets', 'status')) {
+                $updates['status'] = $request->status;
+            }
+        }
+
+        if ($request->has('notes')) {
+            $updates['notes'] = $request->notes;
+        }
+
+        $attendance->update($updates);
 
         return $this->successResponse($attendance, 'Attendance updated successfully');
     }
@@ -132,6 +198,9 @@ class AttendanceController extends ApiController
     public function destroy($id)
     {
         $attendance = TimeSheet::findOrFail($id);
+        if (! $this->canManageAttendance() && ! in_array((int) $attendance->employee_id, $this->resolveAccessibleEmployeeIds(), true)) {
+            return $this->forbiddenResponse('You are not allowed to delete this attendance record.');
+        }
         $attendance->delete();
 
         return $this->successResponse(null, 'Attendance deleted successfully');
@@ -147,17 +216,22 @@ class AttendanceController extends ApiController
     {
         $validator = Validator::make($request->all(), [
             'employee_id' => 'nullable|exists:employees,id',
-            'date_from' => 'required|date_format:Y-m-d',
-            'date_to' => 'required|date_format:Y-m-d',
+            'date_from' => 'sometimes|date_format:Y-m-d',
+            'date_to' => 'sometimes|date_format:Y-m-d',
         ]);
 
         if ($validator->fails()) {
             return $this->errorResponse('Validation failed', 422, $validator->errors()->toArray());
         }
 
-        $query = TimeSheet::whereBetween('date', [$request->date_from, $request->date_to]);
+        $dateFrom = $request->filled('date_from') ? $request->input('date_from') : now()->toDateString();
+        $dateTo = $request->filled('date_to') ? $request->input('date_to') : now()->toDateString();
 
-        if ($request->has('employee_id')) {
+        $query = TimeSheet::whereBetween('date', [$dateFrom, $dateTo]);
+
+        if (! $this->canManageAttendance()) {
+            $query->whereIn('employee_id', $this->resolveAccessibleEmployeeIds());
+        } elseif ($request->has('employee_id')) {
             $query->where('employee_id', $request->employee_id);
         }
 
@@ -165,13 +239,34 @@ class AttendanceController extends ApiController
 
         $stats = [
             'total_days' => $records->count(),
-            'present' => $records->where('status', 'present')->count(),
-            'absent' => $records->where('status', 'absent')->count(),
-            'late' => $records->where('status', 'late')->count(),
-            'half_day' => $records->where('status', 'half_day')->count(),
-            'leave' => $records->where('status', 'leave')->count(),
+            'present_today' => Schema::hasColumn('time_sheets', 'status') ? $records->where('status', 'present')->count() : 0,
+            'absent_today' => Schema::hasColumn('time_sheets', 'status') ? $records->where('status', 'absent')->count() : 0,
+            'late_today' => Schema::hasColumn('time_sheets', 'status') ? $records->where('status', 'late')->count() : 0,
+            'on_leave_today' => Schema::hasColumn('time_sheets', 'status') ? $records->where('status', 'leave')->count() : 0,
+            'half_day_today' => Schema::hasColumn('time_sheets', 'status') ? $records->where('status', 'half_day')->count() : 0,
         ];
 
         return $this->successResponse($stats, 'Attendance statistics retrieved successfully');
+    }
+
+    private function canManageAttendance(): bool
+    {
+        $user = auth()->user();
+        if (! $user || ! method_exists($user, 'getRoleNames')) {
+            return false;
+        }
+
+        $roles = $user->getRoleNames()->map(fn ($role) => strtolower((string) $role))->all();
+
+        return (bool) array_intersect($roles, ['admin', 'rh', 'rh_manager', 'hr', 'manager']);
+    }
+
+    private function resolveAccessibleEmployeeIds(): array
+    {
+        return Employee::query()
+            ->where('user_id', auth()->id())
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 }

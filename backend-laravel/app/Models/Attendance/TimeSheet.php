@@ -9,27 +9,25 @@ class TimeSheet extends Model
 {
     protected $fillable = [
         'employee_id',
-        'timesheet_date',
-        'project_name',
-        'task_description',
-        'hours_worked',
+        'date',
+        'check_in',
+        'check_out',
+        'work_hours',
+        'overtime_hours',
         'status',
-        'remarks'
+        'notes',
     ];
 
     protected $casts = [
-        'timesheet_date' => 'date',
-        'hours_worked' => 'decimal:5,2'
+        'date' => 'date',
+        'check_in' => 'string',
+        'check_out' => 'string',
+        'work_hours' => 'float',
+        'overtime_hours' => 'float',
     ];
 
     public function employee()
     {
         return $this->belongsTo(Employee::class);
-    }
-
-    public function scopeByMonth($query, $month, $year)
-    {
-        return $query->whereYear('timesheet_date', $year)
-                     ->whereMonth('timesheet_date', $month);
     }
 }

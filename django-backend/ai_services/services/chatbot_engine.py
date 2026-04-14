@@ -74,6 +74,7 @@ class ChatbotEngine:
         session_id: str,
         auth_header: str | None = None,
         user_roles: list[str] | None = None,
+        user_id: int | None = None,
     ) -> dict:
         """
         Full pipeline: receive a user message, persist it, run AI, return response.
@@ -83,11 +84,16 @@ class ChatbotEngine:
         if not original_text:
             return {"response": "Please send a message.", "intent": "empty", "entities": {}, "model_used": None}
 
-        # 1. Get or create conversation
-        conversation, _ = ChatbotConversation.objects.get_or_create(
+        owner_id = int(user_id) if user_id is not None else 0
+
+        # 1. Get or create conversation (must store Laravel user id or history API returns nothing)
+        conversation, _created = ChatbotConversation.objects.get_or_create(
             session_uuid=session_id,
-            defaults={"user_id": 0},
+            defaults={"user_id": owner_id},
         )
+        if owner_id and conversation.user_id != owner_id:
+            conversation.user_id = owner_id
+            conversation.save(update_fields=["user_id"])
 
         # 2. Save user message
         ChatbotMessage.objects.create(
@@ -544,7 +550,7 @@ class ChatbotEngine:
         if name_match:
             entities["name"] = name_match.group(1).capitalize()
 
-        # Role/job title
+        # Role/job title — only attempt if sentence looks like a role statement
         role_match = re.search(
             r"\b(?:i am|i'm)\s+(?:a|an|the)?\s*([\w]+(?:\s+[\w]+){0,2})\b",
             text,
@@ -552,7 +558,13 @@ class ChatbotEngine:
         )
         if role_match:
             potential_role = role_match.group(1).strip()
-            skip_words = {"the", "a", "an", "also", "just", "really", "very", "here", "new"}
+            skip_words = {
+                "the", "a", "an", "also", "just", "really", "very", "here", "new",
+                "ok", "okay", "fine", "well", "good", "great", "sure", "you",
+                "welcome", "sorry", "ready", "happy", "glad", "not", "no", "yes",
+                "still", "only", "always", "never", "already", "now", "back",
+                "trying", "going", "doing", "wondering", "looking", "thinking",
+            }
             name_stored = entities.get("name", "").lower()
             if (
                 potential_role.lower() != name_stored
@@ -562,6 +574,7 @@ class ChatbotEngine:
                 entities["role"] = potential_role
 
         return entities
+
 
     def update_memory(self, conversation, entities: dict) -> None:
         memory = conversation.memory or {}

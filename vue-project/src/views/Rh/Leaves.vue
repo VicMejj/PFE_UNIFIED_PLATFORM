@@ -6,6 +6,7 @@ import CardContent from '@/components/ui/CardContent.vue'
 import Button from '@/components/ui/Button.vue'
 import DataTable from '@/components/ui/DataTable.vue'
 import Badge from '@/components/ui/Badge.vue'
+import { getStoredToken } from '@/utils/authStorage'
 
 const items = ref<any[]>([])
 const isLoading = ref(true)
@@ -21,7 +22,7 @@ const columns = [
 const fetchLeaves = async () => {
   isLoading.value = true
   try {
-    const token = localStorage.getItem('laravel_token')
+    const token = getStoredToken()
     const res = await fetch(`${import.meta.env.VITE_LARAVEL_API_URL}/leaves`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })

@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { platformApi, type NotificationItem } from '@/api/laravel/platform'
-import { getUserReadNotificationsKey } from '@/api/http'
+import { getUserReadNotificationsKey, isNetworkOrServerUnavailable } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 
 export const useNotificationsStore = defineStore('notifications', () => {
@@ -37,6 +37,10 @@ export const useNotificationsStore = defineStore('notifications', () => {
       )
 
       items.value = applyReadState(combined)
+    } catch (error) {
+      if (!isNetworkOrServerUnavailable(error)) {
+        console.error('Unable to fetch notifications', error)
+      }
     } finally {
       isLoading.value = false
     }

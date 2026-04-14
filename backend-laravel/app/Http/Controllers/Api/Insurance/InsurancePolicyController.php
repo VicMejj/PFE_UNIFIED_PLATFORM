@@ -35,26 +35,36 @@ class InsurancePolicyController extends ApiController
     {
         $data = $request->validate([
             'provider_id' => 'required|exists:insurance_providers,id',
-            'name' => 'sometimes|string|max:255',
-            'policy_name' => 'sometimes|string|max:255',
-            'coverage_details' => 'sometimes|string',
-            'premium' => 'sometimes|numeric',
-            'premium_amount' => 'sometimes|numeric',
+            'name' => 'required|string|max:255',
+            'policy_name' => 'nullable|string|max:255',
+            'policy_type' => 'nullable|string|max:50',
+            'coverage_details' => 'nullable|string',
+            'coverage_amount' => 'nullable|numeric|min:0',
+            'premium' => 'nullable|numeric|min:0',
+            'premium_amount' => 'nullable|numeric|min:0',
+            'waiting_period_days' => 'nullable|integer|min:0',
             'is_active' => 'boolean',
         ]);
+        
         $policyName = $data['policy_name'] ?? $data['name'] ?? null;
-        $premiumAmount = $data['premium_amount'] ?? $data['premium'] ?? null;
+        $premiumAmount = $data['premium_amount'] ?? $data['premium'] ?? 0;
+        $coverageAmount = $data['coverage_amount'] ?? 0;
+        
         $payload = [
             'provider_id' => $data['provider_id'],
             'name' => $policyName,
             'policy_name' => $policyName,
+            'policy_type' => $data['policy_type'] ?? 'health',
             'premium' => $premiumAmount,
             'premium_amount' => $premiumAmount,
+            'coverage_amount' => $coverageAmount,
             'coverage_details' => $data['coverage_details'] ?? null,
+            'waiting_period_days' => $data['waiting_period_days'] ?? 30,
             'is_active' => $data['is_active'] ?? true,
         ];
+        
         $policy = InsurancePolicy::create(array_filter($payload, fn ($value) => $value !== null));
-        return $this->successResponse($policy, 'Insurance policy created', 201);
+        return $this->successResponse($policy->load('provider'), 'Insurance policy created', 201);
     }
 
     public function show($id)

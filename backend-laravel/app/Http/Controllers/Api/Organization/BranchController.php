@@ -35,6 +35,7 @@ class BranchController extends ApiController
             'name' => 'required|string|max:255',
             'code' => 'sometimes|string|max:50',
             'description' => 'sometimes|string',
+            'is_active' => 'sometimes|boolean',
         ]);
 
         $branch = Branch::create($data);
@@ -54,6 +55,7 @@ class BranchController extends ApiController
             'name' => 'sometimes|required|string|max:255',
             'code' => 'sometimes|string|max:50',
             'description' => 'sometimes|string',
+            'is_active' => 'sometimes|boolean',
         ]);
         $branch->update($data);
         return $this->successResponse(new BranchResource($branch));
@@ -63,7 +65,7 @@ class BranchController extends ApiController
     public function destroy($id)
     {
         $branch = Branch::findOrFail($id);
-        $branch->delete();
-        return response()->json(null, 204);
+        $branch->update(['is_active' => false]);
+        return $this->successResponse(new BranchResource($branch), 'Branch deactivated');
     }
 }

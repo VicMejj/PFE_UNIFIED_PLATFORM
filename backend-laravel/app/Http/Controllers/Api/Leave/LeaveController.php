@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ApiController;
 use App\Http\Controllers\Api\CallsDjangoAI;
 use App\Models\Employee\Employee;
 use App\Models\Leave\Holiday;
+use App\Models\Leave\LeaveAttachment;
 use App\Models\Leave\Leave;
 use App\Models\Leave\LeaveBalance;
 use App\Models\Leave\LeaveType;
@@ -14,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 
 class LeaveController extends ApiController
 {
@@ -45,7 +47,9 @@ class LeaveController extends ApiController
             'leave_type_id' => 'nullable|exists:leave_types,id',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
+            'duration_type' => 'sometimes|in:full_day,half_day_morning,half_day_afternoon',
             'reason' => 'nullable|string|max:1000',
+            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
         ]);
 
         $data['employee_id'] = $this->resolveTargetEmployeeId($data['employee_id'] ?? null);
@@ -90,6 +94,7 @@ class LeaveController extends ApiController
             'leave_type_id' => $data['leave_type_id'] ?? null,
             'start_date' => $data['start_date'],
             'end_date' => $data['end_date'],
+            'duration_type' => $data['duration_type'] ?? 'full_day',
             'reason' => $data['reason'] ?? null,
             'status' => 'pending',
             'total_days' => $policyCheck['working_days'],
@@ -101,10 +106,11 @@ class LeaveController extends ApiController
         }
 
         if (Schema::hasColumn('leaves', 'days_requested')) {
-            $payload['days_requested'] = $policyCheck['calendar_days'];
+            $payload['days_requested'] = $this->resolveRequestedDays($payload['duration_type'], $policyCheck['working_days']);
         }
 
         $leave = Leave::create($payload);
+        $this->storeAttachments($request, $leave);
 
         try {
             $response = $this->djangoPost('/api/ai/leave/approval-probability/', [
@@ -140,7 +146,7 @@ class LeaveController extends ApiController
             ]
         );
 
-        return $this->successResponse($leave->load(['employee', 'leaveType', 'approvedBy']), 'Leave request submitted successfully.', 201);
+        return $this->successResponse($leave->load(['employee', 'leaveType', 'approvedBy', 'attachments']), 'Leave request submitted successfully.', 201);
     }
 
     public function requestInsights(Request $request): JsonResponse
@@ -150,6 +156,7 @@ class LeaveController extends ApiController
             'leave_type_id' => 'nullable|exists:leave_types,id',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date',
+            'duration_type' => 'nullable|in:full_day,half_day_morning,half_day_afternoon',
         ]);
 
         $employeeId = $this->resolveTargetEmployeeId($data['employee_id'] ?? null);
@@ -187,6 +194,7 @@ class LeaveController extends ApiController
             'approval_probability' => null,
             'policy_violations' => [],
             'validation_errors' => [],
+            'recommended_approvers' => $this->recommendedApprovers($employeeId, $leaveTypeId),
         ];
 
         if (! empty($data['start_date']) && ! empty($data['end_date'])) {
@@ -242,6 +250,7 @@ class LeaveController extends ApiController
             'leave_type_id' => 'sometimes|nullable|exists:leave_types,id',
             'start_date' => 'sometimes|date',
             'end_date' => 'sometimes|date',
+            'duration_type' => 'sometimes|in:full_day,half_day_morning,half_day_afternoon',
             'reason' => 'sometimes|nullable|string|max:1000',
             'status' => 'sometimes|nullable|string|max:50',
             'rejection_reason' => 'sometimes|nullable|string|max:1000',
@@ -280,7 +289,46 @@ class LeaveController extends ApiController
 
         $leave->update($data);
 
-        return $this->successResponse($leave->fresh()->load(['employee', 'leaveType', 'approvedBy']), 'Leave request updated successfully.');
+        return $this->successResponse($leave->fresh()->load(['employee', 'leaveType', 'approvedBy', 'attachments']), 'Leave request updated successfully.');
+    }
+
+    public function uploadAttachment(Request $request, $id): JsonResponse
+    {
+        $leave = Leave::findOrFail($id);
+        if (! $this->canViewLeave($leave)) {
+            return $this->forbiddenResponse('You are not allowed to modify this leave request.');
+        }
+
+        $data = $request->validate([
+            'attachment' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+        ]);
+
+        $file = $data['attachment'];
+        $path = $file->store("leaves/{$leave->id}", 'public');
+
+        $attachment = LeaveAttachment::create([
+            'leave_id' => $leave->id,
+            'file_name' => $file->getClientOriginalName(),
+            'file_path' => $path,
+            'file_type' => $file->getClientMimeType(),
+            'file_size' => $file->getSize(),
+        ]);
+
+        return $this->successResponse($attachment, 'Leave attachment uploaded successfully.', 201);
+    }
+
+    public function downloadAttachment($leaveId, $attachmentId)
+    {
+        $leave = Leave::findOrFail($leaveId);
+        if (! $this->canViewLeave($leave)) {
+            return $this->forbiddenResponse('You are not allowed to access this attachment.');
+        }
+
+        $attachment = LeaveAttachment::query()
+            ->where('leave_id', $leave->id)
+            ->findOrFail($attachmentId);
+
+        return Storage::disk('public')->download($attachment->file_path, $attachment->file_name);
     }
 
     public function destroy($id)
@@ -298,14 +346,20 @@ class LeaveController extends ApiController
 
     public function approveByManager($id): JsonResponse
     {
-        $leave = Leave::with('employee')->findOrFail($id);
+        $leave = Leave::with(['employee', 'leaveType'])->findOrFail($id);
         if (! $this->canManageLeaves()) {
             return $this->forbiddenResponse('You are not allowed to approve leave requests.');
         }
+
+        $requiresHr = $this->requiresHrApproval($leave);
         $updates = [
-            'status' => 'approved_by_manager',
+            'approval_stage' => 'manager_approved',
             'approved_by' => auth()->id(),
         ];
+
+        if (! $requiresHr) {
+            $updates['status'] = 'approved';
+        }
 
         if (Schema::hasColumn('leaves', 'approval_date')) {
             $updates['approval_date'] = now();
@@ -318,22 +372,25 @@ class LeaveController extends ApiController
             'leave_manager_approved',
             "leave_manager_approved_{$leave->id}",
             'Manager approved your leave',
-            'Your leave request was approved by a manager and is now waiting for HR confirmation.',
+            $requiresHr
+                ? 'Your leave request was approved by a manager and is now waiting for HR confirmation.'
+                : 'Your leave request was fully approved by a manager.',
             '/leave-requests',
         );
 
-        return $this->successResponse($leave, 'Leave approved by manager');
+        return $this->successResponse($leave->fresh()->load(['employee', 'leaveType', 'approvedBy', 'attachments']), $requiresHr ? 'Leave approved by manager' : 'Leave approved');
     }
 
     public function approveByHR($id): JsonResponse
     {
-        $leave = Leave::with('employee')->findOrFail($id);
+        $leave = Leave::with(['employee', 'leaveType'])->findOrFail($id);
         if (! $this->canManageLeaves()) {
             return $this->forbiddenResponse('You are not allowed to approve leave requests.');
         }
         $updates = [
             'status' => 'approved',
             'approved_by' => auth()->id(),
+            'approval_stage' => 'hr_approved',
         ];
 
         if (Schema::hasColumn('leaves', 'approval_date')) {
@@ -351,12 +408,12 @@ class LeaveController extends ApiController
             '/leave-requests',
         );
 
-        return $this->successResponse($leave, 'Leave approved by HR');
+        return $this->successResponse($leave->fresh()->load(['employee', 'leaveType', 'approvedBy', 'attachments']), 'Leave approved by HR');
     }
 
     public function reject(Request $request, $id): JsonResponse
     {
-        $leave = Leave::with('employee')->findOrFail($id);
+        $leave = Leave::with(['employee', 'leaveType'])->findOrFail($id);
         if (! $this->canManageLeaves()) {
             return $this->forbiddenResponse('You are not allowed to reject leave requests.');
         }
@@ -366,6 +423,7 @@ class LeaveController extends ApiController
         $updates = [
             'status' => 'rejected',
             'rejected_by' => auth()->id(),
+            'approval_stage' => 'rejected',
         ];
 
         if (Schema::hasColumn('leaves', 'rejection_reason')) {
@@ -385,7 +443,7 @@ class LeaveController extends ApiController
             '/leave-requests',
         );
 
-        return $this->successResponse($leave, 'Leave rejected');
+        return $this->successResponse($leave->fresh()->load(['employee', 'leaveType', 'approvedBy', 'attachments']), 'Leave rejected');
     }
 
     public function getOptimalDates(Request $request)
@@ -563,6 +621,55 @@ class LeaveController extends ApiController
                 'channel' => 'in_app',
             ]
         );
+    }
+
+    private function storeAttachments(Request $request, Leave $leave): void
+    {
+        if (! $request->hasFile('attachments')) {
+            return;
+        }
+
+        foreach ((array) $request->file('attachments') as $file) {
+            if (! $file) {
+                continue;
+            }
+
+            $path = $file->store("leaves/{$leave->id}", 'public');
+
+            LeaveAttachment::create([
+                'leave_id' => $leave->id,
+                'file_name' => $file->getClientOriginalName(),
+                'file_path' => $path,
+                'file_type' => $file->getClientMimeType(),
+                'file_size' => $file->getSize(),
+            ]);
+        }
+    }
+
+    private function resolveRequestedDays(string $durationType, int $workingDays): float
+    {
+        return match ($durationType) {
+            'half_day_morning', 'half_day_afternoon' => 0.5,
+            default => (float) $workingDays,
+        };
+    }
+
+    private function recommendedApprovers(int $employeeId, ?int $leaveTypeId): array
+    {
+        $leaveType = $leaveTypeId ? LeaveType::find($leaveTypeId) : null;
+        $typeName = strtolower((string) ($leaveType?->leave_code ?: $leaveType?->name));
+
+        if (str_contains($typeName, 'sick')) {
+            return ['manager', 'hr'];
+        }
+
+        return ['manager'];
+    }
+
+    private function requiresHrApproval(Leave $leave): bool
+    {
+        $typeName = strtolower((string) ($leave->leaveType?->leave_code ?: $leave->leaveType?->name));
+        return str_contains($typeName, 'sick');
     }
 
     private function resolveTargetEmployeeId(?int $requestedEmployeeId = null): ?int

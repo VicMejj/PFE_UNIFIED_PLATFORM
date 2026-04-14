@@ -102,6 +102,7 @@ class AuthController extends ApiController
             'user' => $user,
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getAllPermissions()->pluck('name'),
+            'employee_id' => $user->employees()->value('id'),
             'token' => $token,
             'expires_in' => JWTAuth::factory()->getTTL() * 60,
         ], 'Email verified successfully.');
@@ -231,6 +232,7 @@ class AuthController extends ApiController
             'user' => $user,
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getAllPermissions()->pluck('name'),
+            'employee_id' => $user->employees()->value('id'),
             'token' => $token,
             'expires_in' => JWTAuth::factory()->getTTL() * 60,
         ]);
@@ -257,12 +259,13 @@ class AuthController extends ApiController
      */
     public function me()
     {
-        $user = auth()->user()->load('roles','permissions');
+        $user = auth()->user()->load('roles', 'permissions');
 
         return $this->successResponse([
             'user' => $user,
             'roles' => $user->getRoleNames(),
-            'permissions' => $user->getPermissionNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+            'employee_id' => $user->employees()->value('id'),
         ]);
     }
 
@@ -288,6 +291,7 @@ class AuthController extends ApiController
             'user' => $user,
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getPermissionNames(),
+            'employee_id' => $user->employees()->value('id'),
         ], 'Profile updated successfully.');
     }
 
@@ -344,6 +348,7 @@ class AuthController extends ApiController
             'user' => $user,
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getPermissionNames(),
+            'employee_id' => $user->employees()->value('id'),
         ], 'Profile photo updated successfully.');
     }
 
@@ -368,6 +373,7 @@ class AuthController extends ApiController
             'user' => $user,
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getPermissionNames(),
+            'employee_id' => $user->employees()->value('id'),
         ], 'Preferences updated successfully.');
     }
 

@@ -24,12 +24,16 @@ const LeaveRequests = () => import('@/views/LeaveRequests.vue')
 const MyData = () => import('@/views/Employee/MyData.vue')
 const AssurancePolicies = () => import('@/views/Assurance/Policies.vue')
 const AssuranceClaims = () => import('@/views/Assurance/Claims.vue')
+const AssuranceEmployeeClaims = () => import('@/views/Assurance/EmployeeClaims.vue')
+const AssurancePlans = () => import('@/views/Assurance/Plans.vue')
 const SocialBenefits = () => import('@/views/Social/Benefits.vue')
 const EmployeeBenefits = () => import('@/views/Social/EmployeeBenefits.vue')
 const SocialClaims = () => import('@/views/Social/Claims.vue')
+const EmployeeScoreDashboard = () => import('@/views/EmployeeScoreDashboard.vue')
 const Finance = () => import('@/views/Finance.vue')
 const Attendance = () => import('@/views/Attendance.vue')
 const Documents = () => import('@/views/Documents.vue')
+const InsuranceHub = () => import('@/views/InsuranceHub.vue')
 const Chatbot = () => import('@/views/Chatbot.vue')
 const AIAnalytics = () => import('@/views/AIAnalytics.vue')
 const AdminUsers = () => import('@/views/Admin/Users.vue')
@@ -42,6 +46,11 @@ function resolveDefaultRoute(role?: string | null) {
   if (role === 'manager') return '/manager'
   if (role === 'employee') return '/employee'
   return '/dashboard'
+}
+
+function redirectIfNeeded(next: (location?: string | false | void) => void, toPath: string, targetPath: string) {
+  if (toPath === targetPath) return next()
+  return next(targetPath)
 }
 
 const routes = [
@@ -77,30 +86,39 @@ const routes = [
       { path: 'rh/leaves', name: 'leaves', component: LeaveRequests, meta: { role: 'rh_manager' } },
       { path: 'rh/contracts', name: 'contracts', component: Contracts, meta: { role: 'rh_manager' } },
       { path: 'rh/payroll', name: 'payroll', component: Payroll, meta: { role: 'rh_manager' } },
+      { path: 'rh/organization', name: 'rh-organization', component: AdminOrganization, meta: { role: 'rh_manager' } },
+      { path: 'rh/notifications', redirect: '/notifications', meta: { role: 'rh_manager' } },
       
       // Manager
       { path: 'manager', name: 'manager', component: () => import('@/views/Manager/ManagerDashboard.vue'), meta: { role: 'manager' } },
 
       // Employee
       { path: 'employee', name: 'employee', component: MyData, meta: { role: 'employee' } },
+      { path: 'employee/my-data', redirect: '/employee' },
 
       // Shared features (Finance, Attendance, Documents)
       { path: 'finance', name: 'finance', component: Finance },
       { path: 'attendance', name: 'attendance', component: Attendance },
       { path: 'documents', name: 'documents', component: Documents },
+      { path: 'insurance', name: 'insurance-hub', component: InsuranceHub },
 
       // AI Features (restricted to admin/manager/rh)
       { path: 'chatbot', name: 'chatbot', component: Chatbot, meta: { restrictedRoles: ['admin', 'manager', 'rh_manager'] } },
       { path: 'ai-analytics', name: 'ai-analytics', component: AIAnalytics, meta: { restrictedRoles: ['admin', 'manager', 'rh_manager'] } },
 
-      // Insurance (shared — rh + admin)
-      { path: 'assurance/policies', name: 'policies', component: AssurancePolicies },
-      { path: 'assurance/claims', name: 'claims', component: AssuranceClaims },
+      // Insurance (admin/rh only)
+      { path: 'assurance/policies', name: 'policies', component: AssurancePolicies, meta: { restrictedRoles: ['admin', 'rh_manager'] } },
+      { path: 'assurance/plans', name: 'plans', component: AssurancePlans, meta: { restrictedRoles: ['admin', 'rh_manager'] } },
+      { path: 'assurance/claims', name: 'claims', component: AssuranceClaims, meta: { restrictedRoles: ['admin', 'rh_manager'] } },
+      
+      // Insurance (employee)
+      { path: 'assurance/my-claims', name: 'my-claims', component: AssuranceEmployeeClaims, meta: { role: 'employee' } },
 
       // Social
       { path: 'social/benefits', name: 'benefits', component: SocialBenefits },
       { path: 'social/employee-benefits', name: 'employee-benefits', component: EmployeeBenefits },
       { path: 'social/claims', name: 'social-claims', component: SocialClaims },
+      { path: 'social/scores', name: 'employee-scores', component: EmployeeScoreDashboard, meta: { restrictedRoles: ['admin', 'manager', 'rh_manager'] } },
     ]
   }
 ]
@@ -127,8 +145,8 @@ router.beforeEach(async (to, _from, next) => {
 
   // Public routes - redirect to dashboard if already logged in
   if (to.meta.public) {
-    if (token && to.path !== '/verify-email') {
-      return next(resolveDefaultRoute(user?.role))
+    if (token && user && to.path !== '/verify-email') {
+      return redirectIfNeeded(next, to.path, resolveDefaultRoute(user.role))
     }
     return next()
   }
@@ -139,7 +157,7 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (to.path === '/dashboard') {
-    return next(resolveDefaultRoute(user?.role))
+    return redirectIfNeeded(next, to.path, resolveDefaultRoute(user?.role))
   }
 
   // Role-specific route protection
@@ -152,9 +170,9 @@ router.beforeEach(async (to, _from, next) => {
     }
     
     // Check if user has the required role
-    if (user?.role !== requiredRole) {
+    if (user?.role && user.role !== requiredRole) {
       // Redirect to appropriate dashboard based on user's role
-      return next(resolveDefaultRoute(user?.role))
+      return redirectIfNeeded(next, to.path, resolveDefaultRoute(user.role))
     }
   }
 

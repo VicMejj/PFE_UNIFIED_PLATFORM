@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Plus, Shield } from 'lucide-vue-next'
+import { Download, Plus, Shield } from 'lucide-vue-next'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import CardDescription from '@/components/ui/CardDescription.vue'
@@ -108,21 +108,70 @@ async function savePolicy() {
 
 const getStatusVariant = (status: string) => status === 'Active' ? 'success' : 'destructive'
 
+const escapeCsv = (value: unknown) => {
+  const text = String(value ?? '')
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+const downloadCsv = (name: string, rows: Record<string, unknown>[]) => {
+  const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))))
+  const csv = [headers.join(','), ...rows.map((row) => headers.map((header) => escapeCsv(row[header])).join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${name}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+const downloadJson = (name: string, rows: unknown) => {
+  const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${name}.json`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
 onMounted(fetchPolicies)
 </script>
 
 <template>
   <div class="space-y-6">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <div class="flex items-center gap-3">
-        <Shield class="w-8 h-8 text-blue-600" />
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div class="flex items-center gap-3">
+          <Shield class="w-8 h-8 text-blue-600" />
         <div>
           <h2 class="text-3xl font-bold tracking-tight">Insurance Policies</h2>
           <p class="text-gray-500 dark:text-gray-400">Manage insurance plans with live provider and policy data from Laravel.</p>
         </div>
       </div>
-      <Button v-if="canManagePolicies" class="bg-blue-600" @click="isCreating = !isCreating"><Plus class="w-4 h-4 mr-2" /> {{ isCreating ? 'Close Form' : 'Add Policy' }}</Button>
-    </div>
+      <div class="flex gap-2">
+        <Button
+          variant="outline"
+          class="border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
+          :disabled="isLoading"
+          @click="downloadJson('insurance-policies', items)"
+        >
+          <Download class="w-4 h-4 mr-2" /> JSON
+        </Button>
+        <Button
+          variant="outline"
+          class="border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
+          :disabled="isLoading"
+          @click="downloadCsv('insurance-policies', items)"
+        >
+          <Download class="w-4 h-4 mr-2" /> CSV
+        </Button>
+        <Button v-if="canManagePolicies" class="bg-blue-600" @click="isCreating = !isCreating"><Plus class="w-4 h-4 mr-2" /> {{ isCreating ? 'Close Form' : 'Add Policy' }}</Button>
+      </div>
+      </div>
 
     <div v-if="feedback" class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
       {{ feedback }}

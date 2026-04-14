@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\NotificationCreated;
 use Illuminate\Database\Eloquent\Model;
 
 class Notification extends Model
@@ -27,5 +28,12 @@ class Notification extends Model
     public function reads()
     {
         return $this->hasMany(NotificationRead::class);
+    }
+
+    protected static function booted(): void
+    {
+        static::created(function (self $notification) {
+            event(new NotificationCreated($notification));
+        });
     }
 }
