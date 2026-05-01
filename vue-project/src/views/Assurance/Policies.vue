@@ -69,7 +69,9 @@ const fetchPolicies = async () => {
       policy_name: item.policy_name || item.name || `Policy #${item.id}`,
       provider: item.provider?.name || 'No provider',
       coverage_type: item.coverage_details || 'Coverage details not provided',
-      premium_amount: item.premium_amount || item.premium ? `$${Number(item.premium_amount || item.premium).toLocaleString()}` : 'Not set',
+      premium_amount: item.premium_amount || item.premium
+        ? new Intl.NumberFormat('en-TN', { style: 'currency', currency: 'TND' }).format(Number(item.premium_amount || item.premium))
+        : 'Not set',
       status: item.is_active ? 'Active' : 'Inactive',
     }))
   } catch (err) {

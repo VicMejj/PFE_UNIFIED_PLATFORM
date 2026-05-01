@@ -166,12 +166,12 @@ const sendMessage = async () => {
     if (err.name !== 'AbortError') {
       console.error('Chatbot error:', err)
       errorMessage.value = isNetworkFailure(err)
-        ? 'The Django AI service is offline right now, so this view is using local fallback behavior.'
+        ? "I'm here to help! The AI service is temporarily unavailable, but I can still assist with basic queries."
         : err.response?.data?.detail || 'Unable to get response from chatbot.'
       messages.value.push({
         id: uuidv4(),
         sender: 'BOT',
-        text: 'Sorry, I encountered an error. Please try again later.',
+        text: "I'm still here! The AI service had a temporary issue. Try sending your message again, or ask me about leave, payroll, or policies!",
         timestamp: new Date(),
         isError: true
       })

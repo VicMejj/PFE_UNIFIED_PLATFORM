@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Brain, Gift, Plus, Sparkles, Activity, CheckCircle, Clock, AlertCircle, Zap } from 'lucide-vue-next'
+import { Brain, Gift, Plus, Sparkles, Activity, CheckCircle, Clock, AlertCircle, Zap, TrendingUp, Target, Award } from 'lucide-vue-next'
 import Dialog from '@/components/ui/Dialog.vue'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -34,6 +34,7 @@ const myScore = ref<any>(null)
 const recLoading = ref(false)
 const showRecModal = ref(false)
 const selectedEmployeeId = ref<string>('')
+const selectedEmployeeScore = ref<any>(null)
 const claimingBenefitId = ref<number | null>(null)
 const allMyAllowances = ref<any[]>([])
 
@@ -63,9 +64,7 @@ const isEmployeeView = computed(() => auth.user?.role === 'employee')
 const filteredItems = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   const source = isEmployeeView.value ? assignedBenefits.value : items.value
-
   if (!query) return source
-
   return source.filter((item) =>
     [item.name, item.description, item.status]
       .filter(Boolean)
@@ -75,22 +74,47 @@ const filteredItems = computed(() => {
   )
 })
 
-const benefitStats = computed(() => [
-  {
-    label: isEmployeeView.value ? 'Assigned benefits' : 'Benefit catalog',
-    value: isEmployeeView.value ? assignedBenefits.value.length : items.value.length,
-    description: isEmployeeView.value ? 'Benefits currently assigned to your profile.' : 'Programs currently listed in the platform.',
-    icon: Gift,
-    color: 'bg-emerald-500'
-  },
-  {
-    label: isEmployeeView.value ? 'Active assignments' : 'Active benefits',
-    value: (isEmployeeView.value ? assignedBenefits.value : items.value).filter((item) => item.status === 'Active').length,
-    description: isEmployeeView.value ? 'Benefits that are currently active for you.' : 'Visible and ready for employee use.',
-    icon: Sparkles,
-    color: 'bg-sky-500'
+const sortedRecommendations = computed(() => {
+  const recs = [...recommendations.value]
+  const priorityOrder: Record<string, number> = { eligible: 0, nearly_eligible: 1, not_eligible: 2 }
+  return recs.sort((a, b) => {
+    const priorityDiff = (priorityOrder[a.status ?? ''] ?? 3) - (priorityOrder[b.status ?? ''] ?? 3)
+    if (priorityDiff !== 0) return priorityDiff
+    return (b.eligibility_score || 0) - (a.eligibility_score || 0)
+  })
+})
+
+
+
+const eligibleCount = computed(() => recommendations.value.filter(r => r.status === 'eligible').length)
+const nearlyEligibleCount = computed(() => recommendations.value.filter(r => r.status === 'nearly_eligible').length)
+
+function getEmployeeDisplayName(emp: any) {
+  const fullName = [emp?.first_name, emp?.last_name].filter(Boolean).join(' ').trim()
+  return emp?.full_name || emp?.name || fullName || emp?.email || `Employee #${emp?.id}`
+}
+
+function getRecommendationStatusVariant(status: string) {
+  switch (status) {
+    case 'eligible': return 'success'
+    case 'nearly_eligible': return 'warning'
+    default: return 'secondary'
   }
-])
+}
+
+function getScoreVariant(score: number | undefined | null) {
+  if (!score) return 'secondary'
+  if (score >= 85) return 'success'
+  if (score >= 70) return 'default'
+  if (score >= 50) return 'warning'
+  return 'destructive'
+}
+
+function resolveBenefitName(benefitId: number | string | undefined) {
+  if (!benefitId) return 'Unknown Benefit'
+  const option = items.value.find((item) => Number(item.id) === Number(benefitId))
+  return option?.name || `Benefit #${benefitId}`
+}
 
 async function loadBenefits() {
   isLoading.value = true
@@ -98,15 +122,21 @@ async function loadBenefits() {
 
   try {
     if (isEmployeeView.value) {
-      const [assignedData, scoreData, allowancesData] = await Promise.all([
+      const [assignedData, scoreData, allowancesData, benefitData] = await Promise.all([
         platformApi.getMyAllowances(),
         platformApi.getMyScore(),
-        platformApi.getMyAllowances()
+        platformApi.getMyAllowances(),
+        platformApi.getAllowanceOptions()
       ])
       
       const assignedItems = unwrapItems<any>(assignedData)
-      myScore.value = (scoreData as any).data || scoreData
+      myScore.value = (scoreData as any)?.data || scoreData
       allMyAllowances.value = Array.isArray(allowancesData) ? allowancesData : (allowancesData as any)?.data || []
+      items.value = unwrapItems<any>(benefitData).map((item: any) => ({
+        ...item,
+        description: item.description || 'No description provided',
+        status: item.is_active ? 'Active' : 'Inactive'
+      }))
 
       assignedBenefits.value = assignedItems.map((item: any) => ({
         ...item,
@@ -114,16 +144,9 @@ async function loadBenefits() {
         description: item.allowance_option?.description || item.allowanceOption?.description || 'Assigned benefit',
         displayStatus: item.claimed ? 'Claimed' : item.status === 'active' ? 'Ready to Claim' : item.status === 'pending' ? 'Pending Approval' : 'Inactive'
       }))
-      
-      const benefitData = await platformApi.getAllowanceOptions()
-      items.value = unwrapItems<any>(benefitData).map((item) => ({
-        ...item,
-        description: item.description || 'No description provided',
-        status: item.is_active ? 'Active' : 'Inactive'
-      }))
     } else {
       const benefitData = await platformApi.getAllowanceOptions()
-      items.value = unwrapItems<any>(benefitData).map((item) => ({
+      items.value = unwrapItems<any>(benefitData).map((item: any) => ({
         ...item,
         description: item.description || 'No description provided',
         status: item.is_active ? 'Active' : 'Inactive'
@@ -163,30 +186,22 @@ function getClaimableBenefit(allowanceOptionId: number) {
 }
 
 function getBenefitClaimStatus(benefit: any) {
-  if (benefit.claimed) {
-    return { label: 'Claimed', variant: 'info' as const, icon: CheckCircle }
-  }
-  if (benefit.status === 'active') {
-    return { label: 'Ready to Claim', variant: 'success' as const, icon: Zap }
-  }
-  if (benefit.status === 'pending') {
-    return { label: 'Pending', variant: 'warning' as const, icon: Clock }
-  }
+  if (benefit.claimed) return { label: 'Claimed', variant: 'info' as const, icon: CheckCircle }
+  if (benefit.status === 'active') return { label: 'Ready to Claim', variant: 'success' as const, icon: Zap }
+  if (benefit.status === 'pending') return { label: 'Pending', variant: 'warning' as const, icon: Clock }
   return { label: 'Inactive', variant: 'secondary' as const, icon: AlertCircle }
 }
 
 async function requestBenefit(benefit: any) {
   errorMsg.value = ''
   feedback.value = ''
-  
   try {
     await platformApi.submitBenefitRequest({
       allowance_option_id: benefit.id,
-      reason: `Requested via Benefit Catalog`,
-      requested_amount: 0 // Will be determined by HR
+      reason: 'Requested via Benefit Catalog',
+      requested_amount: 0
     })
     feedback.value = `Request for ${benefit.name} submitted successfully.`
-    // Refresh or redirect
     router.push('/social/claims')
   } catch (error) {
     errorMsg.value = 'Failed to submit benefit request.'
@@ -196,7 +211,6 @@ async function requestBenefit(benefit: any) {
 async function createBenefit() {
   errorMsg.value = ''
   feedback.value = ''
-
   try {
     await platformApi.createAllowanceOption({
       name: form.name,
@@ -218,23 +232,12 @@ async function createBenefit() {
 async function loadEmployees() {
   if (!canManageBenefits.value) return
   try {
-    const [empData, scoreData] = await Promise.all([
-      platformApi.getEmployees(),
-      platformApi.getDashboardScores()
-    ])
-    
+    const empData = await platformApi.getEmployees()
     const allEmployees = unwrapItems<any>(empData)
-    const scoreDataAny = scoreData as any
-    const allScores = scoreDataAny?.at_risk_employees?.concat(scoreDataAny?.excellent_employees) || []
     
-    // Create a map for quick score lookup
-    const scoreMap = new Map()
-    allScores.forEach((s: any) => scoreMap.set(s.employee_id, s.overall_score))
-
     employees.value = allEmployees.map(emp => ({
       ...emp,
-      full_name: `${emp.first_name} ${emp.last_name}`,
-      score: scoreMap.get(emp.id) || null
+      full_name: getEmployeeDisplayName(emp)
     }))
   } catch (error) {
     console.error('Failed to load employees', error)
@@ -246,14 +249,38 @@ async function fetchRecommendations() {
 
   recLoading.value = true
   recommendations.value = []
+  selectedEmployeeScore.value = null
+  
   try {
-    const data: any = await platformApi.getBenefitRecommendations(Number(selectedEmployeeId.value))
-    recommendations.value = data?.recommendations || data || []
+    const [scoreData, recData] = await Promise.all([
+      platformApi.getEmployeeScore(Number(selectedEmployeeId.value)).catch(() => null as any),
+      platformApi.getBenefitRecommendations(Number(selectedEmployeeId.value))
+    ])
+    
+    const rawScore = (scoreData as any)?.score ?? scoreData
+    selectedEmployeeScore.value = (rawScore as any)?.overall_score !== undefined ? rawScore : null
+    
+    const recs = Array.isArray(recData) ? recData : Array.isArray((recData as any)?.data) ? (recData as any).data : []
+    recommendations.value = recs.map((rec: any) => ({
+      ...rec,
+      benefit_name: rec.benefit_name || resolveBenefitName(rec.benefit_id),
+      eligibility_score: Number(rec.eligibility_score ?? 0)
+    }))
   } catch (error) {
     console.error('Failed to fetch recommendations', error)
-    errorMsg.value = 'AI could not generate recommendations at this time.'
+    errorMsg.value = 'Could not generate recommendations. Please try again.'
+    recommendations.value = []
   } finally {
     recLoading.value = false
+  }
+}
+
+function onEmployeeSelect(event: Event) {
+  const target = event.target as HTMLSelectElement
+  selectedEmployeeId.value = target.value
+  recommendations.value = []
+  if (selectedEmployeeId.value) {
+    fetchRecommendations()
   }
 }
 
@@ -273,7 +300,7 @@ onMounted(() => {
         <div>
           <h2 class="text-3xl font-bold tracking-tight">Social Benefits</h2>
           <p class="text-gray-500 dark:text-gray-400">
-            {{ isEmployeeView ? 'Review only the benefits assigned to your profile.' : 'Browse the benefit catalog and keep employee perks organized.' }}
+            {{ isEmployeeView ? 'View your assigned benefits and track eligibility.' : 'Manage benefit catalog and employee entitlements.' }}
           </p>
         </div>
       </div>
@@ -300,9 +327,7 @@ onMounted(() => {
       {{ errorMsg }}
     </div>
 
-    <!-- Employee Holistic Score Header -->
-    <div v-if="isEmployeeView && myScore" class="relative overflow-hidden rounded-3xl bg-indigo-600 p-8 text-white shadow-xl shadow-indigo-100 dark:shadow-none">
-      <!-- Decorative Elements -->
+    <div v-if="isEmployeeView && myScore?.overall_score" class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 to-purple-700 p-8 text-white shadow-xl">
       <div class="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
       <div class="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-indigo-400/20 blur-3xl"></div>
 
@@ -310,54 +335,36 @@ onMounted(() => {
         <div class="flex-1 space-y-4">
           <div class="flex items-center gap-2">
             <Badge variant="outline" class="border-indigo-300 text-indigo-100 font-bold uppercase tracking-widest text-[10px]">Your Growth Status</Badge>
-            <span class="text-indigo-200 text-sm font-medium">Evaluation active: {{ new Date().toLocaleDateString() }}</span>
           </div>
-          <h2 class="text-3xl font-black tracking-tight">Your Holistic Performance Score</h2>
+          <h2 class="text-3xl font-black tracking-tight">Your Performance Score</h2>
           <p class="text-indigo-100 text-lg opacity-90 max-w-xl">
-            You're currently in the <span class="font-bold underline decoration-emerald-400 decoration-2">{{ myScore.score_tier }} Tier</span>. 
-            Maintain a score above 85% to unlock premium tier benefits automatically.
+            You're in the <span class="font-bold underline decoration-emerald-400 decoration-2">{{ myScore.score_tier }} Tier</span>. 
+            Maintain a score above 85% to unlock premium tier benefits.
           </p>
           
           <div v-if="myScore.improvement_suggestions?.length" class="mt-6 flex flex-wrap gap-2">
             <div v-for="tip in myScore.improvement_suggestions.slice(0, 2)" :key="tip" class="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 text-sm backdrop-blur-md">
               <Sparkles class="h-4 w-4 text-emerald-300" />
-              <span>AI Suggests: {{ tip }}</span>
+              <span>{{ tip }}</span>
             </div>
           </div>
         </div>
 
         <div class="flex flex-col items-center gap-2">
           <div class="relative flex h-40 w-40 items-center justify-center rounded-full border-8 border-indigo-500/30 bg-indigo-500/20 shadow-inner">
-             <div class="text-center">
-               <span class="text-5xl font-black">{{ Math.round(myScore.overall_score) }}%</span>
-               <div class="text-[10px] font-bold uppercase tracking-widest opacity-60">Global Score</div>
-             </div>
+            <div class="text-center">
+              <span class="text-5xl font-black">{{ Math.round(myScore.overall_score) }}%</span>
+              <div class="text-[10px] font-bold uppercase tracking-widest opacity-60">Global Score</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <div v-else class="grid gap-4 lg:grid-cols-2">
-      <Card v-for="card in benefitStats" :key="card.label">
-        <CardContent class="p-6">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <div class="text-sm text-slate-500 dark:text-slate-400">{{ card.label }}</div>
-              <div class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{{ card.value }}</div>
-              <div class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ card.description }}</div>
-            </div>
-            <div :class="[card.color, 'flex h-12 w-12 items-center justify-center rounded-2xl text-white']">
-              <component :is="card.icon" class="h-5 w-5" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-
     <Card v-if="isCreating && canManageBenefits">
       <CardHeader>
         <CardTitle>Create Benefit</CardTitle>
-        <CardDescription>The Add Benefit action now creates allowance options in Laravel.</CardDescription>
+        <CardDescription>Add a new benefit option to the catalog.</CardDescription>
       </CardHeader>
       <CardContent class="grid gap-4 md:grid-cols-2">
         <div class="space-y-2">
@@ -373,7 +380,7 @@ onMounted(() => {
         </div>
         <div class="space-y-2 md:col-span-2">
           <Label>Description</Label>
-          <Input v-model="form.description" placeholder="Describe the benefit and who it applies to" />
+          <Input v-model="form.description" placeholder="Describe the benefit" />
         </div>
         <div class="md:col-span-2 flex justify-end">
           <Button @click="createBenefit">Save Benefit</Button>
@@ -428,7 +435,7 @@ onMounted(() => {
 
         <div v-if="isEmployeeView && items.length > 0" class="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
           <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4">Available Benefits Catalog</h3>
-          <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Browse available benefits. Contact HR if you'd like to request access to any benefit.</p>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Contact HR if you'd like to request access to any benefit.</p>
         </div>
         
         <DataTable 
@@ -444,12 +451,8 @@ onMounted(() => {
           </template>
           <template v-if="isEmployeeView" #actions="{ item }">
             <div class="flex items-center gap-2">
-              <Badge v-if="getClaimableBenefit(item.id)" variant="success" class="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
-                Assigned
-              </Badge>
-              <Button size="sm" variant="outline" @click="requestBenefit(item)">
-                Request
-              </Button>
+              <Badge v-if="getClaimableBenefit(item.id)" variant="success" class="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">Assigned</Badge>
+              <Button size="sm" variant="outline" @click="requestBenefit(item)">Request</Button>
             </div>
           </template>
         </DataTable>
@@ -458,72 +461,121 @@ onMounted(() => {
 
     <Dialog :open="showRecModal" title="AI Benefit Recommendations" @close="showRecModal = false">
       <div class="space-y-5">
-        <div class="rounded-3xl border border-blue-500/10 bg-gradient-to-br from-blue-500/8 via-white to-emerald-500/8 p-4 dark:from-blue-500/10 dark:via-slate-950 dark:to-emerald-500/10">
-          <p class="text-sm text-slate-500 dark:text-slate-400">
-            Our AI blends role, department, employee history, and previous selections to surface high-confidence benefit matches.
-          </p>
+        <div class="rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50 p-4 dark:border-indigo-900/40 dark:from-indigo-950/40 dark:to-purple-950/40">
+          <div class="flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600">
+              <Brain class="h-5 w-5 text-white" />
+            </div>
+            <p class="text-sm text-slate-600 dark:text-slate-300">
+              Select an employee to view personalized benefit eligibility recommendations based on their performance score.
+            </p>
+          </div>
         </div>
 
         <div class="space-y-2">
           <Label>Select Employee</Label>
           <select 
-            v-model="selectedEmployeeId" 
-            class="flex h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
-            @change="fetchRecommendations"
+            :value="selectedEmployeeId"
+            class="flex h-11 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-white"
+            @change="onEmployeeSelect"
           >
             <option value="">Choose an employee...</option>
             <option v-for="emp in employees" :key="emp.id" :value="String(emp.id)">
-              {{ emp.full_name }} — {{ emp.score ? Math.round(emp.score) + '%' : 'No Score' }}
+              {{ emp.full_name }}
             </option>
           </select>
         </div>
 
-        <div v-if="recLoading" class="py-8 text-center">
-          <Sparkles class="mx-auto h-8 w-8 animate-pulse text-indigo-400" />
-          <p class="mt-2 text-sm text-slate-400">Analyzing suitability...</p>
-        </div>
-
-        <div v-else-if="recommendations.length" class="space-y-3 pt-2">
-          <div 
-            v-for="rec in recommendations" 
-            :key="rec.benefit_id"
-            class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-950"
-          >
-            <div class="flex items-start justify-between">
-              <div>
-                <div class="flex items-center gap-2">
-                  <h4 class="font-semibold text-slate-900 dark:text-white">{{ rec.benefit_name || 'Premium Perk' }}</h4>
-                  <Badge :variant="rec.status === 'eligible' ? 'success' : 'secondary'">
-                    {{ rec.status || 'review' }}
-                  </Badge>
-                </div>
-                <p class="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{{ rec.reasoning || 'Highly recommended based on current role and performance.' }}</p>
-              </div>
-              <div class="flex flex-col items-end">
-                <span class="text-lg font-bold text-blue-600 dark:text-blue-400">{{ Math.round((rec.suitability_score || rec.score || 0.85) * 100) }}%</span>
-                <span class="text-[10px] uppercase tracking-wider text-slate-500">Match</span>
-              </div>
-            </div>
-            <div class="mt-4 flex flex-wrap gap-2">
-              <Badge v-for="tag in (rec.tags || ['Top Choice', 'Retention'])" :key="tag" variant="secondary" class="text-[10px]">
-                {{ tag }}
+        <div v-if="selectedEmployeeScore" class="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/20">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <Badge :variant="getScoreVariant(selectedEmployeeScore.overall_score)" class="h-10 w-10 rounded-lg p-0 flex items-center justify-center text-lg font-bold">
+                {{ Math.round(selectedEmployeeScore.overall_score || 0) }}
               </Badge>
-            </div>
-            <div v-if="rec.admin_guidance" class="mt-4 rounded-2xl border border-sky-500/15 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
-              {{ rec.admin_guidance }}
+              <div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">Employee Score</div>
+                <div class="text-sm font-medium capitalize">{{ selectedEmployeeScore.score_tier || 'Unknown' }} Tier</div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div v-else-if="selectedEmployeeId" class="py-8 text-center text-sm text-slate-500 border border-dashed border-white/10 rounded-xl">
-          No specific recommendations found for this profile.
+        <div v-if="recLoading" class="py-8 text-center">
+          <div class="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600"></div>
+          <p class="mt-3 text-sm text-slate-500">Analyzing eligibility...</p>
+        </div>
+
+        <template v-else-if="selectedEmployeeId">
+          <div v-if="sortedRecommendations.length > 0" class="space-y-3">
+            <div class="flex flex-wrap gap-3">
+              <div class="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200">
+                <CheckCircle class="h-3.5 w-3.5" /> {{ eligibleCount }} Eligible
+              </div>
+              <div class="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+                <TrendingUp class="h-3.5 w-3.5" /> {{ nearlyEligibleCount }} Nearly Eligible
+              </div>
+            </div>
+
+            <div 
+              v-for="rec in sortedRecommendations" 
+              :key="rec.benefit_id"
+              :class="[
+                'rounded-2xl border p-4 transition-all',
+                rec.status === 'eligible' ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20' :
+                rec.status === 'nearly_eligible' ? 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20' :
+                'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'
+              ]"
+            >
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <h4 class="font-semibold text-slate-900 dark:text-white">{{ rec.benefit_name }}</h4>
+                    <Badge :variant="getRecommendationStatusVariant(rec.status)" class="capitalize text-xs">
+                      {{ rec.status?.replace('_', ' ') }}
+                    </Badge>
+                  </div>
+                  <div class="mt-1 flex items-center gap-2">
+                    <span class="text-lg font-bold text-indigo-600 dark:text-indigo-400">{{ Math.round(rec.eligibility_score * 100) }}%</span>
+                    <span class="text-xs text-slate-500">eligibility</span>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="rec.gap_actions?.length > 0 && rec.gap_actions[0] !== 'All requirements met - ready for assignment'" class="mt-3">
+                <div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Required Actions</div>
+                <div class="space-y-1">
+                  <div v-for="action in rec.gap_actions" :key="action" class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <div class="mt-1.5 h-1.5 w-1.5 rounded-full bg-slate-400 flex-shrink-0"></div>
+                    {{ action }}
+                  </div>
+                </div>
+              </div>
+              <div v-else-if="rec.status === 'eligible'" class="mt-3 rounded-lg bg-emerald-100/50 p-2 text-sm text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                All requirements met. Ready for immediate assignment.
+              </div>
+
+              <div v-if="rec.estimated_months_to_qualify > 0" class="mt-2 text-xs text-slate-500">
+                Est. {{ rec.estimated_months_to_qualify }} month(s) to qualify
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="py-8 text-center">
+            <Award class="mx-auto h-12 w-12 text-slate-300 dark:text-slate-600" />
+            <p class="mt-3 text-sm text-slate-500">No recommendations available for this employee.</p>
+          </div>
+        </template>
+
+        <div v-else class="py-8 text-center">
+          <Target class="mx-auto h-12 w-12 text-slate-300 dark:text-slate-600" />
+          <p class="mt-3 text-sm text-slate-500">Select an employee to view their benefit eligibility.</p>
         </div>
       </div>
 
       <template #footer>
         <Button variant="outline" @click="showRecModal = false">Close</Button>
-        <Button :disabled="!selectedEmployeeId || recLoading" class="bg-indigo-600 text-white" @click="fetchRecommendations">
-          Refresh AI
+        <Button :disabled="!selectedEmployeeId || recLoading" class="bg-indigo-600 text-white hover:bg-indigo-700" @click="fetchRecommendations">
+          <Brain class="w-4 h-4 mr-2" /> Refresh Analysis
         </Button>
       </template>
     </Dialog>

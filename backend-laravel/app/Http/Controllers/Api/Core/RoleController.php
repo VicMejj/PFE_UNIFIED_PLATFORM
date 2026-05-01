@@ -195,6 +195,11 @@ class RoleController extends ApiController
      */
     public function getUserRoles($userId)
     {
+        $authUser = auth()->user()->load('roles');
+        if (! $authUser->hasRole('admin')) {
+            return $this->forbiddenResponse('Only administrators can view user roles');
+        }
+
         $user = \App\Models\User::findOrFail($userId);
 
         return $this->successResponse([
@@ -275,7 +280,7 @@ class RoleController extends ApiController
         }
 
         $validator = Validator::make($request->all(), [
-            'roles' => 'required|array',
+            'roles' => 'required|array|min:1',
             'roles.*' => 'string|exists:roles,name',
         ]);
 
@@ -284,6 +289,10 @@ class RoleController extends ApiController
         }
 
         $user = \App\Models\User::findOrFail($userId);
+
+        if ((int) $user->id === (int) auth()->id() && $user->hasRole('admin') && ! in_array('admin', $request->roles, true)) {
+            return $this->forbiddenResponse('You cannot remove your own admin role');
+        }
 
         try {
             $user->syncRoles($request->roles);

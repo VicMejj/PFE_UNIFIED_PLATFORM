@@ -37,7 +37,7 @@ class SettingController extends ApiController
             'system' => [
                 'timezone' => $this->resolveSettingValue($dbSettings, 'system.timezone', config('app.timezone')),
                 'locale' => $this->resolveSettingValue($dbSettings, 'system.locale', config('app.locale')),
-                'currency' => $this->resolveSettingValue($dbSettings, 'system.currency', config('app.currency', 'USD')),
+                'currency' => $this->resolveSettingValue($dbSettings, 'system.currency', config('app.currency', 'TND')),
             ],
             'modules' => [
                 'attendance' => config('modules.attendance.enabled', true),

@@ -20,7 +20,7 @@ import Button from '@/components/ui/Button.vue'
 import Badge from '@/components/ui/Badge.vue'
 import SmartCalendar from '@/components/common/SmartCalendar.vue'
 import { platformApi } from '@/api/laravel/platform'
-import { unwrapItems } from '@/api/http'
+import { unwrapItems, logApiError } from '@/api/http'
 
 const router = useRouter()
 
@@ -124,7 +124,7 @@ onMounted(async () => {
     attendanceRecords.value = unwrapItems(attendanceData)
     attendanceStats.value = attendanceStatsData
   } catch (error) {
-    console.error('Incomplete admin dashboard sync', error)
+    logApiError('Admin dashboard sync', error)
   } finally {
     isLoading.value = false
   }

@@ -151,7 +151,7 @@ class PaySlipController extends ApiController
         $monthName   = \DateTime::createFromFormat('!m', $paySlip->payroll_month)?->format('F') ?? $paySlip->payroll_month;
         $periodLabel = "{$monthName} {$paySlip->payroll_year}";
         $companyName = config('app.company_name', config('app.name', 'Your Company'));
-        $currency    = config('app.currency', '$');
+        $currency    = config('app.currency', 'TND');
         $isDraft     = ! in_array($paySlip->status, ['generated', 'sent', 'paid']);
 
         $pdf = Pdf::loadView('payroll.payslip-pdf', compact(

@@ -514,6 +514,44 @@ export const platformApi = {
     return unwrapResponse(response)
   },
 
+  // ── Score Notes ─────────────────────────────────
+  async getScoreNotes(employeeId: number, authorType?: string) {
+    const params = new URLSearchParams({ employee_id: String(employeeId) })
+    if (authorType) params.append('author_type', authorType)
+    const response = await laravelApi.get(`/employees/score-notes?${params}`)
+    return unwrapResponse(response)
+  },
+
+  async createScoreNote(data: {
+    employee_id: number
+    note_type?: string
+    attendance_note?: Array<{ rating?: number; comment?: string }>
+    discipline_note?: Array<{ rating?: number; comment?: string }>
+    performance_note?: Array<{ rating?: number; comment?: string }>
+    general_note?: string
+    score_adjustment?: number
+    period_start?: string
+    period_end?: string
+  }) {
+    const response = await laravelApi.post('/employees/score-notes', data)
+    return unwrapResponse(response)
+  },
+
+  async getDepartmentEmployeesForNotes() {
+    const response = await laravelApi.get('/employees/score-notes/my-department-employees')
+    return unwrapResponse(response)
+  },
+
+  async getDepartmentNotes() {
+    const response = await laravelApi.get('/employees/score-notes/department')
+    return unwrapResponse(response)
+  },
+
+  async getEmployeeScoreWithNotes(employeeId: number) {
+    const response = await laravelApi.get(`/employees/${employeeId}/score/with-notes`)
+    return unwrapResponse(response)
+  },
+
   // ── Benefit Requests ─────────────────────────────────
   async getBenefitRequests() {
     const response = await laravelApi.get('/payroll/benefits/requests')

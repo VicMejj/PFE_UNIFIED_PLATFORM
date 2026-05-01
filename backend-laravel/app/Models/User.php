@@ -45,6 +45,11 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasMany(Employee::class);
     }
 
+    public function employee()
+    {
+        return $this->hasOne(Employee::class);
+    }
+
     public function hasVerifiedEmail(): bool
     {
         return ! is_null($this->email_verified_at);

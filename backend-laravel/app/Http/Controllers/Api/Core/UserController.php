@@ -53,7 +53,7 @@ class UserController extends ApiController
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:6|confirmed',
+            'password' => 'required|string|min:6',
             'role_id' => 'nullable|exists:roles,id',
             'type' => 'sometimes|string|max:50',
             'avatar' => 'sometimes|string|max:255',

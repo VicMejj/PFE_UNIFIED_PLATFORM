@@ -87,6 +87,32 @@ export function isNetworkOrServerUnavailable(error: any) {
   )
 }
 
+export function formatAxiosError(error: any): string {
+  if (!error) return 'Unknown error'
+
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status
+    const url = error.config?.url
+    const method = error.config?.method?.toUpperCase()
+    const serverMsg = error.response?.data?.message || error.response?.data?.error
+
+    if (status) {
+      return `[${method} ${url}] HTTP ${status}: ${serverMsg || error.message}`
+    }
+    return `[${method} ${url}] ${error.code || 'Network Error'}: ${error.message}`
+  }
+
+  return error instanceof Error ? error.message : String(error)
+}
+
+export function logApiError(context: string, error: any) {
+  if (isNetworkOrServerUnavailable(error)) {
+    console.warn(`[API] ${context}: Network unavailable (suppressed)`)
+    return
+  }
+  console.error(`[API] ${context} failed:`, formatAxiosError(error))
+}
+
 export function getAvatarUrl(user: { avatar_url?: string | null; avatar?: string | null } | null | undefined) {
   if (!user) return ''
   if (user.avatar_url) {

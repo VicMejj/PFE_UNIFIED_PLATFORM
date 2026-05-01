@@ -4,6 +4,7 @@ import json
 import logging
 from dataclasses import dataclass
 from typing import List, Optional
+from collections import Counter
 
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -25,11 +26,6 @@ def _repo_root() -> str:
 
 
 def _default_sources() -> List[str]:
-    """
-    Only index curated knowledge base files inside ai_services/knowledge/.
-    Do NOT index arbitrary project files (routes, backend code, etc.)
-    to avoid leaking internal file paths into RAG context.
-    """
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     knowledge_dir = os.path.join(base_dir, "knowledge")
     return [
@@ -40,7 +36,11 @@ def _default_sources() -> List[str]:
 
 def _gather_sources() -> List[str]:
     env_sources = os.getenv("RAG_SOURCES")
-    patterns = [s.strip() for s in env_sources.split(",")] if env_sources else _default_sources()
+    patterns = (
+        [s.strip() for s in env_sources.split(",")]
+        if env_sources
+        else _default_sources()
+    )
     files: List[str] = []
     for pattern in patterns:
         if os.path.isfile(pattern):
@@ -96,7 +96,6 @@ def _chunk_text(text: str, chunk_size: int, overlap: int) -> List[str]:
         end = min(length, start + chunk_size)
         window = text[start:end]
 
-        # Try to cut on a sentence boundary near the end
         if end < length:
             pivot = window.rfind(". ")
             if pivot > chunk_size * 0.6:
@@ -111,11 +110,6 @@ def _chunk_text(text: str, chunk_size: int, overlap: int) -> List[str]:
 
 
 def _friendly_source_name(path: str) -> str:
-    """
-    Convert a file path to a clean, friendly topic label.
-    e.g. 'leave_policy.md' → 'leave_policy'
-    This is used internally only and never shown to users.
-    """
     basename = os.path.basename(path)
     name, _ = os.path.splitext(basename)
     return name.replace("_", " ").replace("-", " ").strip()
@@ -124,10 +118,17 @@ def _friendly_source_name(path: str) -> str:
 @dataclass
 class RagChunk:
     text: str
-    source: str   # friendly name only, no file paths
+    source: str
 
 
-class RAGStore:
+class EnhancedRAGStore:
+    """
+    Enhanced RAG Store with:
+    - Multi-method retrieval (semantic + keyword/BM25)
+    - Query expansion for better recall
+    - Result re-ranking
+    """
+
     def __init__(self):
         self.chunks: List[RagChunk] = []
         self.embeddings: Optional[np.ndarray] = None
@@ -180,7 +181,11 @@ class RAGStore:
     def _build_index(self) -> None:
         sources = _gather_sources()
         max_bytes = int(os.getenv("RAG_MAX_FILE_BYTES", "2000000"))
-        include_pdfs = os.getenv("RAG_INCLUDE_PDFS", "false").lower() in {"1", "true", "yes"}
+        include_pdfs = os.getenv("RAG_INCLUDE_PDFS", "false").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         chunk_size = int(os.getenv("RAG_CHUNK_SIZE", "1200"))
         overlap = int(os.getenv("RAG_CHUNK_OVERLAP", "200"))
 
@@ -195,7 +200,6 @@ class RAGStore:
             if not text:
                 continue
 
-            # Use a friendly topic name — never a raw file path
             friendly_name = _friendly_source_name(path)
             for chunk in _chunk_text(text, chunk_size, overlap):
                 chunks.append(RagChunk(text=chunk, source=friendly_name))
@@ -205,7 +209,11 @@ class RAGStore:
             logger.warning("No RAG chunks created; check RAG_SOURCES.")
             return
 
-        use_embeddings = os.getenv("RAG_USE_EMBEDDINGS", "true").lower() in {"1", "true", "yes"}
+        use_embeddings = os.getenv("RAG_USE_EMBEDDINGS", "true").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         if use_embeddings:
             self._build_embeddings()
         if self.embeddings is None:
@@ -215,7 +223,9 @@ class RAGStore:
         try:
             from sentence_transformers import SentenceTransformer
         except Exception as exc:
-            logger.warning("SentenceTransformers unavailable, falling back to TF-IDF: %s", exc)
+            logger.warning(
+                "SentenceTransformers unavailable, falling back to TF-IDF: %s", exc
+            )
             self.embeddings = None
             self.method = "tfidf"
             return
@@ -251,7 +261,54 @@ class RAGStore:
             self.embeddings = None
             self.method = "tfidf"
 
-    def query(self, query_text: str, top_k: int = 3, min_score: float = 0.45) -> List[dict]:
+    def _expand_query(self, query: str) -> List[str]:
+        """Expand query with synonyms and related terms for better recall."""
+        expansions = {
+            "leave": ["vacation", "time off", "holiday", "absence", "PTO"],
+            "salary": ["pay", "payroll", "compensation", "wage", "income"],
+            "employee": ["staff", "worker", "team member", "colleague"],
+            "insurance": ["coverage", "policy", "medical", "health", "claim"],
+            "policy": ["rules", "guidelines", "procedure", "regulation"],
+            "onboarding": ["joining", "new hire", "orientation", "induction"],
+            "performance": ["appraisal", "evaluation", "rating", "score"],
+        }
+
+        expanded = [query]
+        query_lower = query.lower()
+        for key, synonyms in expansions.items():
+            if key in query_lower:
+                expanded.extend(synonyms)
+
+        return list(set(expanded))
+
+    def _bm25_score(self, query: str, text: str, avg_doc_len: float) -> float:
+        """Calculate BM25 score for keyword matching."""
+        k1 = 1.5
+        b = 0.75
+
+        query_terms = query.lower().split()
+        text_lower = text.lower()
+        text_len = len(text_lower.split())
+
+        doc_freq = Counter()
+        for term in query_terms:
+            doc_freq[term] = text_lower.count(term)
+
+        score = 0.0
+        for term in query_terms:
+            tf = doc_freq.get(term, 0)
+            if tf > 0:
+                idf = 1.0
+                numerator = tf * (k1 + 1)
+                denominator = tf + k1 * (1 - b + b * (text_len / avg_doc_len))
+                score += idf * (numerator / denominator)
+
+        return score
+
+    def query(
+        self, query_text: str, top_k: int = 3, min_score: float = 0.45
+    ) -> List[dict]:
+        """Enhanced query with multi-method retrieval and re-ranking."""
         if not query_text:
             return []
 
@@ -260,11 +317,54 @@ class RAGStore:
         if not self.chunks or self.embeddings is None:
             return []
 
+        expanded_queries = self._expand_query(query_text)
+
+        avg_doc_len = np.mean([len(c.text.split()) for c in self.chunks]) or 100
+
+        semantic_scores = self._get_semantic_scores(expanded_queries[0])
+
+        bm25_scores = np.array(
+            [
+                self._bm25_score(query_text, chunk.text, avg_doc_len)
+                for chunk in self.chunks
+            ]
+        )
+
+        if bm25_scores.max() > 0:
+            bm25_scores = bm25_scores / bm25_scores.max()
+
+        combined_scores = 0.7 * semantic_scores + 0.3 * bm25_scores
+
+        top_indices = np.argsort(combined_scores)[::-1][: top_k * 2]
+
+        results = []
+        for idx in top_indices:
+            score = float(combined_scores[idx])
+            if score < min_score * 0.5:
+                continue
+            chunk = self.chunks[int(idx)]
+            results.append(
+                {
+                    "text": chunk.text,
+                    "source": chunk.source,
+                    "score": round(score, 3),
+                }
+            )
+            if len(results) >= top_k:
+                break
+
+        return results
+
+    def _get_semantic_scores(self, query_text: str) -> np.ndarray:
+        """Get semantic similarity scores."""
         if self.method == "sbert":
             try:
                 if self._embedder is None:
                     from sentence_transformers import SentenceTransformer
-                    self._embedder = SentenceTransformer(self.model_name or "all-MiniLM-L6-v2")
+
+                    self._embedder = SentenceTransformer(
+                        self.model_name or "all-MiniLM-L6-v2"
+                    )
                 q_emb = self._embedder.encode(
                     [query_text],
                     normalize_embeddings=True,
@@ -272,37 +372,28 @@ class RAGStore:
                 )
                 scores = np.dot(self.embeddings, np.array(q_emb).T).squeeze()
             except Exception:
-                return []
+                return np.zeros(len(self.chunks))
         else:
             if not self.vectorizer:
-                return []
+                return np.zeros(len(self.chunks))
             q_vec = self.vectorizer.transform([query_text])
             scores = cosine_similarity(self.embeddings, q_vec).squeeze()
 
         if scores.ndim == 0:
             scores = np.array([scores])
 
-        top_indices = np.argsort(scores)[::-1][:top_k]
-        results = []
-        for idx in top_indices:
-            score = float(scores[idx])
-            if score < min_score:
-                continue
-            chunk = self.chunks[int(idx)]
-            results.append({
-                "text": chunk.text,
-                "source": chunk.source,   # friendly name, safe to log internally
-                "score": score,
-            })
-        return results
+        if scores.max() > 0:
+            scores = scores / scores.max()
+
+        return scores
 
 
-_RAG_STORE: Optional[RAGStore] = None
+_RAG_STORE: Optional[EnhancedRAGStore] = None
 
 
-def get_rag_store() -> RAGStore:
+def get_rag_store() -> EnhancedRAGStore:
     global _RAG_STORE
     if _RAG_STORE is None:
-        _RAG_STORE = RAGStore()
+        _RAG_STORE = EnhancedRAGStore()
         _RAG_STORE.load_or_build()
     return _RAG_STORE

@@ -54,7 +54,7 @@ async function loadRequests() {
       ...item,
       employee_name: item.employee?.name || item.employee?.full_name || 'N/A',
       benefit_name: item.allowance_option?.name || 'Benefit',
-      requested_amount: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(item.requested_amount)
+      requested_amount: new Intl.NumberFormat('en-TN', { style: 'currency', currency: 'TND' }).format(item.requested_amount)
     }))
   } catch (error) {
     console.error('Failed to load requests', error)

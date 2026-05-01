@@ -10,7 +10,8 @@ import {
   Calendar, 
   ShieldAlert,
   BrainCircuit,
-  PieChart
+  PieChart,
+  Plus
 } from 'lucide-vue-next'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
@@ -18,6 +19,7 @@ import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import Button from '@/components/ui/Button.vue'
 import Badge from '@/components/ui/Badge.vue'
+import EmployeeScoreNoteForm from '@/components/EmployeeScoreNoteForm.vue'
 import { platformApi } from '@/api/laravel/platform'
 import { laravelApi } from '@/api/http'
 
@@ -25,6 +27,10 @@ const summary = ref<any>({})
 const employeesWithScores = ref<any[]>([])
 const atRiskEmployees = ref<any[]>([])
 const isLoading = ref(true)
+const noteSummaries = ref<Record<number, any>>({})
+const noteDialogOpen = ref(false)
+const selectedEmployeeForNote = ref<any | null>(null)
+const noteEligibleEmployeeIds = ref<number[]>([])
 
 const scoreTiers = computed(() => [
   { name: 'Excellent', count: summary.value.excellent_count || 0, color: 'text-emerald-500', bg: 'bg-emerald-500', percentage: ((summary.value.excellent_count || 0) / (summary.value.total_employees || 1)) * 100 },
@@ -43,7 +49,7 @@ const loadDashboardData = async () => {
     const scoresResponse = await laravelApi.get('/employees/scores?per_page=false')
     const scoresData = scoresResponse.data?.data || scoresResponse.data || []
     
-    employeesWithScores.value = scoresData.slice(0, 10).map((s: any) => ({
+    const topEmployees = scoresData.slice(0, 10).map((s: any) => ({
       ...s.employee,
       id: s.employee?.id,
       name: s.employee?.name,
@@ -56,14 +62,58 @@ const loadDashboardData = async () => {
         score_tier: s.score_tier
       }
     }))
+
+    employeesWithScores.value = topEmployees
+
+    const noteSummaryEntries = await Promise.all(
+      topEmployees.map(async (employee: any) => {
+        try {
+          const response = await platformApi.getEmployeeScoreWithNotes(employee.id) as any
+          return [employee.id, response?.notes_summary || {}] as const
+        } catch {
+          return [employee.id, {}] as const
+        }
+      })
+    )
+
+    noteSummaries.value = Object.fromEntries(noteSummaryEntries)
   } catch {
     summary.value = {}
     atRiskEmployees.value = []
     employeesWithScores.value = []
+    noteSummaries.value = {}
   } finally {
     isLoading.value = false
   }
 }
+
+const loadNoteEligibility = async () => {
+  try {
+    const response = await platformApi.getDepartmentEmployeesForNotes() as any
+    noteEligibleEmployeeIds.value = (response?.employees || []).map((employee: any) => Number(employee.id))
+  } catch {
+    noteEligibleEmployeeIds.value = []
+  }
+}
+
+const canAddNoteForEmployee = (employeeId: number) => noteEligibleEmployeeIds.value.includes(Number(employeeId))
+
+const openNoteDialog = (employee: any) => {
+  selectedEmployeeForNote.value = employee
+  noteDialogOpen.value = true
+}
+
+const closeNoteDialog = () => {
+  noteDialogOpen.value = false
+  selectedEmployeeForNote.value = null
+}
+
+const handleNoteSaved = async () => {
+  await loadDashboardData()
+  closeNoteDialog()
+}
+
+const getNoteSummary = (employeeId: number) => noteSummaries.value[employeeId] || {}
 
 const getScoreColor = (score: number) => {
   if (score >= 85) return 'text-emerald-500'
@@ -79,7 +129,11 @@ const getProgressColor = (score: number) => {
   return 'bg-rose-500'
 }
 
-onMounted(loadDashboardData)
+const formatAdjustment = (adjustment: number) => adjustment > 0 ? `+${adjustment}` : `${adjustment}`
+
+onMounted(async () => {
+  await Promise.all([loadDashboardData(), loadNoteEligibility()])
+})
 </script>
 
 <template>
@@ -233,9 +287,23 @@ onMounted(loadDashboardData)
                   <div class="text-xs text-slate-400 mt-1">{{ emp.department?.name }}</div>
                 </td>
                 <td class="px-6 py-4">
-                  <div class="flex gap-1">
+                  <div class="flex flex-wrap gap-1.5">
                     <Badge variant="outline" class="text-[10px]" :class="emp.score?.attendance_score < 70 ? 'text-rose-500 border-rose-200' : 'text-slate-500'">Attendance: {{ Math.round(emp.score?.attendance_score || 0) }}%</Badge>
                     <Badge variant="outline" class="text-[10px]" :class="emp.score?.discipline_score < 70 ? 'text-rose-500 border-rose-200' : 'text-slate-500'">Discipline: {{ Math.round(emp.score?.discipline_score || 0) }}%</Badge>
+                    <Badge variant="outline" class="text-[10px]" :class="(getNoteSummary(emp.id).overall_note_percent || 0) >= 70 ? 'text-emerald-600 border-emerald-200' : 'text-amber-600 border-amber-200'">
+                      Notes: {{ Math.round(getNoteSummary(emp.id).overall_note_percent || 0) }}%
+                    </Badge>
+                    <Badge variant="outline" class="text-[10px] text-slate-500">
+                      Entries: {{ getNoteSummary(emp.id).total_notes || 0 }}
+                    </Badge>
+                    <Badge
+                      v-if="getNoteSummary(emp.id).total_adjustment"
+                      variant="outline"
+                      class="text-[10px]"
+                      :class="getNoteSummary(emp.id).total_adjustment > 0 ? 'text-emerald-600 border-emerald-200' : 'text-rose-600 border-rose-200'"
+                    >
+                      Adj: {{ formatAdjustment(getNoteSummary(emp.id).total_adjustment) }}
+                    </Badge>
                   </div>
                 </td>
                 <td class="px-6 py-4 text-center">
@@ -247,9 +315,21 @@ onMounted(loadDashboardData)
                   </div>
                 </td>
                 <td class="px-6 py-4 text-right">
-                  <button class="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                  <div class="flex justify-end gap-2">
+                    <Button
+                      v-if="canAddNoteForEmployee(emp.id)"
+                      variant="outline"
+                      size="sm"
+                      class="border-slate-200 text-slate-700 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:text-slate-200"
+                      @click="openNoteDialog(emp)"
+                    >
+                      <Plus class="mr-1 h-3.5 w-3.5" />
+                      Add note
+                    </Button>
+                    <button class="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">
                     <ChevronRight class="h-4 w-4 text-slate-400" />
-                  </button>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -257,6 +337,13 @@ onMounted(loadDashboardData)
         </div>
       </CardContent>
     </Card>
+
+    <EmployeeScoreNoteForm
+      :show-modal="noteDialogOpen"
+      :employee-id="selectedEmployeeForNote?.id"
+      @close="closeNoteDialog"
+      @saved="handleNoteSaved"
+    />
   </div>
 </template>
 

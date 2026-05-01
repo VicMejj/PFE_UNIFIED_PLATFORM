@@ -69,12 +69,20 @@ Route::middleware('auth:api')->group(function () {
         Route::get('scores/dashboard', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'dashboard']);
         Route::post('scores/bulk-recalculate', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'bulkRecalculate']);
         Route::get('my-score', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'myScore']);
+        
+        // Employee Score Notes routes
+        Route::get('score-notes', [App\Http\Controllers\Api\Employee\EmployeeScoreNoteController::class, 'index']);
+        Route::post('score-notes', [App\Http\Controllers\Api\Employee\EmployeeScoreNoteController::class, 'store']);
+        Route::get('score-notes/my-department-employees', [App\Http\Controllers\Api\Employee\EmployeeScoreNoteController::class, 'myDepartmentEmployees']);
+        Route::get('score-notes/department', [App\Http\Controllers\Api\Employee\EmployeeScoreNoteController::class, 'departmentNotes']);
+        
         Route::prefix('{employeeId}/score')->group(function () {
             Route::get('/', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'show']);
             Route::post('/recalculate', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'recalculate']);
             Route::get('/history', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'history']);
             Route::get('/eligibility', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'checkEligibility']);
             Route::get('/suggestions', [App\Http\Controllers\Api\Employee\EmployeeScoreController::class, 'suggestions']);
+            Route::get('/with-notes', [App\Http\Controllers\Api\Employee\EmployeeScoreNoteController::class, 'employeeScoreWithNotes']);
         });
         
         Route::apiResource('documents', App\Http\Controllers\Api\Employee\DocumentController::class);
@@ -370,4 +378,33 @@ Route::middleware('auth:api')->group(function () {
 
     // ===== MISC/SECURITY ENDPOINTS =====
     Route::apiResource('ip-restricts', App\Http\Controllers\Api\IpRestrictController::class);
+
+    // ===== MESSAGING ENDPOINTS (HR ↔ Manager) =====
+    Route::prefix('messaging')->group(function () {
+        Route::get('conversations', [App\Http\Controllers\Api\Messaging\MessageController::class, 'getConversations']);
+        Route::get('conversation/{userId}', [App\Http\Controllers\Api\Messaging\MessageController::class, 'getConversation']);
+        Route::get('new-messages/{userId}', [App\Http\Controllers\Api\Messaging\MessageController::class, 'getNewMessages']);
+        Route::get('contacts', [App\Http\Controllers\Api\Messaging\MessageController::class, 'getAvailableContacts']);
+        Route::post('send', [App\Http\Controllers\Api\Messaging\MessageController::class, 'sendMessage']);
+        Route::post('typing', [App\Http\Controllers\Api\Messaging\MessageController::class, 'setTyping']);
+        Route::post('mark-read/{messageId}', [App\Http\Controllers\Api\Messaging\MessageController::class, 'markAsRead']);
+        Route::post('mark-conversation-read/{userId}', [App\Http\Controllers\Api\Messaging\MessageController::class, 'markConversationAsRead']);
+        Route::get('unread-count', [App\Http\Controllers\Api\Messaging\MessageController::class, 'getUnreadCount']);
+        Route::get('online-status', [App\Http\Controllers\Api\Messaging\MessageController::class, 'getOnlineStatus']);
+        Route::post('offline-status', [App\Http\Controllers\Api\Messaging\MessageController::class, 'setOfflineStatus']);
+        Route::get('attachment/{messageId}', [App\Http\Controllers\Api\Messaging\MessageController::class, 'downloadAttachment']);
+    });
+
+    // Broadcasting auth for Pusher/Reverb
+    Route::post('broadcasting/auth', [App\Http\Controllers\Api\Messaging\BroadcastingController::class, 'authenticate']);
+
+    // ===== ROLE MANAGEMENT (HR/Manager can manage) =====
+    Route::prefix('roles')->group(function () {
+        Route::get('/', [App\Http\Controllers\Api\Messaging\RoleManagementController::class, 'getAllRoles']);
+        Route::get('users', [App\Http\Controllers\Api\Messaging\RoleManagementController::class, 'getUsersByRole']);
+        Route::get('user/{userId}', [App\Http\Controllers\Api\Messaging\RoleManagementController::class, 'getUserRole']);
+        Route::put('user/{userId}', [App\Http\Controllers\Api\Messaging\RoleManagementController::class, 'updateUserRole']);
+        Route::post('user/{userId}/assign', [App\Http\Controllers\Api\Messaging\RoleManagementController::class, 'assignRole']);
+        Route::post('user/{userId}/remove', [App\Http\Controllers\Api\Messaging\RoleManagementController::class, 'removeRole']);
+    });
 });

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import laravelAuthApi from '@/api/laravel/auth'
 import { initializeTheme } from '@/composables/useTheme'
-import { isNetworkOrServerUnavailable } from '@/api/http'
+import { logApiError } from '@/api/http'
 import {
   clearStoredAuth,
   getRememberMePreference,
@@ -39,8 +39,16 @@ export interface User {
   updated_at: string
   roles: string[]
   permissions: string[]
-  role: string // Primary role for routing (mapped from Laravel roles)
+  role: string
   allRoles: string[]
+  employee?: {
+    id: number
+    name: string
+    department_id: number
+    designation_id: number
+    department?: { id: number; name: string }
+    designation?: { id: number; name: string }
+  } | null
 }
 
 export interface LoginResponse {
@@ -174,9 +182,7 @@ export const useAuthStore = defineStore('auth', () => {
           }
         }
       } catch (error) {
-        if (!isNetworkOrServerUnavailable(error)) {
-          console.error('Auth initialization failed:', error)
-        }
+        logApiError('Auth initialization', error)
         if (shouldClearSessionOnMeFailure(error)) {
           laravelToken.value = null
           user.value = null
@@ -318,7 +324,7 @@ export const useAuthStore = defineStore('auth', () => {
         await laravelAuthApi.logout()
       }
     } catch (error) {
-      console.error('Logout error:', error)
+      logApiError('Logout', error)
     } finally {
       laravelToken.value = null
       user.value = null

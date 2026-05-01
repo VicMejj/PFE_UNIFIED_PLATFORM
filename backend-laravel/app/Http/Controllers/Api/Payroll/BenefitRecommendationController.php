@@ -88,16 +88,330 @@ class BenefitRecommendationController extends ApiController
         } catch (\Throwable $e) {
             Log::error('Benefit recommendation error: ' . $e->getMessage());
 
-            $fallback = $availableBenefits->map(fn ($benefit) => $this->normalizeRecommendation([
-                'benefit_id' => $benefit['id'],
-                'eligibility_score' => 0.45,
-                'status' => 'nearly_eligible',
-                'gap_actions' => ['Improve attendance and performance to qualify for this benefit'],
-                'estimated_months_to_qualify' => 3,
-            ]))->values();
+            $recommendations = $this->generateLocalRecommendations(
+                $employee,
+                $availableBenefits,
+                $score,
+                $tenureMonths,
+                $performanceScore,
+                $attendanceRate,
+                $departmentName,
+                $roleName,
+                $recentSelections
+            );
 
-            return $this->successResponse($fallback, 'Fallback benefit recommendations returned');
+            $this->persistRecommendations($employee->id, $recommendations);
+            return $this->successResponse($recommendations, 'Benefit recommendations generated locally');
         }
+    }
+
+    protected function generateLocalRecommendations(
+        Employee $employee,
+        $availableBenefits,
+        $score,
+        int $tenureMonths,
+        float $performanceScore,
+        float $attendanceRate,
+        string $departmentName,
+        string $roleName,
+        array $recentSelections
+    ): array {
+        $overallScore = $score->overall_score ?? 50;
+        $attendanceScore = $score->attendance_score ?? 70;
+        $disciplineScore = $score->discipline_score ?? 80;
+        $seniorityScore = $score->seniority_score ?? 50;
+        $engagementScore = $score->engagement_score ?? 70;
+
+        $benefitConfigs = $this->getBenefitConfigurations();
+
+        return $availableBenefits->map(function ($benefit) use (
+            $overallScore,
+            $attendanceScore,
+            $disciplineScore,
+            $seniorityScore,
+            $engagementScore,
+            $performanceScore,
+            $attendanceRate,
+            $tenureMonths,
+            $departmentName,
+            $roleName,
+            $recentSelections,
+            $benefitConfigs
+        ) {
+            $benefitName = Str::lower($benefit['name']);
+            $config = $benefitConfigs[$benefit['name']] ?? $this->getDefaultConfig();
+
+            $eligibilityScore = $this->calculateBenefitEligibility(
+                $benefitName,
+                $overallScore,
+                $attendanceScore,
+                $disciplineScore,
+                $seniorityScore,
+                $engagementScore,
+                $performanceScore,
+                $attendanceRate,
+                $tenureMonths,
+                $departmentName,
+                $roleName,
+                $config,
+                $recentSelections
+            );
+
+            $gapActions = $this->determineGapActions(
+                $benefitName,
+                $attendanceScore,
+                $disciplineScore,
+                $seniorityScore,
+                $engagementScore,
+                $performanceScore,
+                $attendanceRate,
+                $tenureMonths,
+                $config
+            );
+
+            $status = $this->determineStatus($eligibilityScore, $gapActions);
+            $estimatedMonths = $this->estimateMonthsToQualify($gapActions, $tenureMonths);
+
+            return $this->normalizeRecommendation([
+                'benefit_id' => $benefit['id'],
+                'benefit_name' => $benefit['name'],
+                'eligibility_score' => $eligibilityScore,
+                'status' => $status,
+                'gap_actions' => $gapActions,
+                'estimated_months_to_qualify' => $estimatedMonths,
+                'reasoning' => $this->buildReasoning($status, $eligibilityScore, $gapActions),
+                'admin_guidance' => $this->buildAdminGuidance($status, $gapActions),
+            ]);
+        })->values()->all();
+    }
+
+    protected function getBenefitConfigurations(): array
+    {
+        return [
+            'Health Insurance' => [
+                'min_tenure_months' => 6,
+                'min_performance' => 3.0,
+                'min_attendance' => 85,
+                'weights' => ['seniority' => 0.15, 'performance' => 0.30, 'attendance' => 0.30, 'discipline' => 0.15, 'engagement' => 0.10],
+            ],
+            'Dental Coverage' => [
+                'min_tenure_months' => 12,
+                'min_performance' => 3.0,
+                'min_attendance' => 80,
+                'weights' => ['seniority' => 0.20, 'performance' => 0.25, 'attendance' => 0.25, 'discipline' => 0.15, 'engagement' => 0.15],
+            ],
+            'Vision Insurance' => [
+                'min_tenure_months' => 12,
+                'min_performance' => 3.0,
+                'min_attendance' => 80,
+                'weights' => ['seniority' => 0.20, 'performance' => 0.25, 'attendance' => 0.25, 'discipline' => 0.15, 'engagement' => 0.15],
+            ],
+            'Life Insurance' => [
+                'min_tenure_months' => 6,
+                'min_performance' => 3.5,
+                'min_attendance' => 90,
+                'weights' => ['seniority' => 0.15, 'performance' => 0.30, 'attendance' => 0.25, 'discipline' => 0.25, 'engagement' => 0.05],
+            ],
+            'Gym Membership' => [
+                'min_tenure_months' => 3,
+                'min_performance' => 2.5,
+                'min_attendance' => 75,
+                'weights' => ['seniority' => 0.10, 'performance' => 0.20, 'attendance' => 0.30, 'discipline' => 0.15, 'engagement' => 0.25],
+            ],
+            'Professional Development' => [
+                'min_tenure_months' => 6,
+                'min_performance' => 3.5,
+                'min_attendance' => 80,
+                'weights' => ['seniority' => 0.10, 'performance' => 0.35, 'attendance' => 0.20, 'discipline' => 0.15, 'engagement' => 0.20],
+            ],
+            'Transportation Allowance' => [
+                'min_tenure_months' => 6,
+                'min_performance' => 3.0,
+                'min_attendance' => 85,
+                'weights' => ['seniority' => 0.15, 'performance' => 0.25, 'attendance' => 0.30, 'discipline' => 0.15, 'engagement' => 0.15],
+            ],
+            'Remote Work Stipend' => [
+                'min_tenure_months' => 12,
+                'min_performance' => 3.5,
+                'min_attendance' => 90,
+                'weights' => ['seniority' => 0.10, 'performance' => 0.35, 'attendance' => 0.25, 'discipline' => 0.20, 'engagement' => 0.10],
+            ],
+            'Retirement Plan (401k)' => [
+                'min_tenure_months' => 24,
+                'min_performance' => 3.5,
+                'min_attendance' => 85,
+                'weights' => ['seniority' => 0.30, 'performance' => 0.30, 'attendance' => 0.20, 'discipline' => 0.15, 'engagement' => 0.05],
+            ],
+            'Paid Time Off (PTO)' => [
+                'min_tenure_months' => 12,
+                'min_performance' => 3.0,
+                'min_attendance' => 85,
+                'weights' => ['seniority' => 0.25, 'performance' => 0.25, 'attendance' => 0.25, 'discipline' => 0.15, 'engagement' => 0.10],
+            ],
+            'Meal Vouchers' => [
+                'min_tenure_months' => 3,
+                'min_performance' => 2.5,
+                'min_attendance' => 80,
+                'weights' => ['seniority' => 0.15, 'performance' => 0.20, 'attendance' => 0.35, 'discipline' => 0.15, 'engagement' => 0.15],
+            ],
+            'Child Care Assistance' => [
+                'min_tenure_months' => 12,
+                'min_performance' => 3.0,
+                'min_attendance' => 80,
+                'weights' => ['seniority' => 0.15, 'performance' => 0.25, 'attendance' => 0.25, 'discipline' => 0.20, 'engagement' => 0.15],
+            ],
+            'Manager of the Year' => [
+                'min_tenure_months' => 24,
+                'min_performance' => 4.5,
+                'min_attendance' => 95,
+                'weights' => ['seniority' => 0.15, 'performance' => 0.40, 'attendance' => 0.20, 'discipline' => 0.15, 'engagement' => 0.10],
+            ],
+        ];
+    }
+
+    protected function getDefaultConfig(): array
+    {
+        return [
+            'min_tenure_months' => 6,
+            'min_performance' => 3.0,
+            'min_attendance' => 80,
+            'weights' => ['seniority' => 0.20, 'performance' => 0.25, 'attendance' => 0.25, 'discipline' => 0.15, 'engagement' => 0.15],
+        ];
+    }
+
+    protected function calculateBenefitEligibility(
+        string $benefitName,
+        float $overallScore,
+        float $attendanceScore,
+        float $disciplineScore,
+        float $seniorityScore,
+        float $engagementScore,
+        float $performanceScore,
+        float $attendanceRate,
+        int $tenureMonths,
+        string $departmentName,
+        string $roleName,
+        array $config,
+        array $recentSelections
+    ): float {
+        $weights = $config['weights'];
+        $minTenure = $config['min_tenure_months'];
+        $minPerformance = $config['min_performance'];
+        $minAttendance = $config['min_attendance'];
+
+        $weightedScore = ($attendanceScore * $weights['attendance'])
+            + ($performanceScore * 20 * $weights['performance'])
+            + ($disciplineScore * $weights['discipline'])
+            + ($seniorityScore * $weights['seniority'])
+            + ($engagementScore * $weights['engagement']);
+
+        $tenureRatio = min(1.0, $tenureMonths / max(1, $minTenure));
+        $performanceRatio = min(1.0, $performanceScore / max(1, $minPerformance));
+        $attendanceRatio = min(1.0, $attendanceRate / max(1, $minAttendance));
+
+        $baseEligibility = $weightedScore / 100;
+        $tenureBonus = $tenureRatio * 0.15;
+        $performanceBonus = ($performanceRatio - 0.5) * 0.15;
+        $attendanceBonus = ($attendanceRatio - 0.7) * 0.10;
+
+        $eligibility = $baseEligibility + $tenureBonus + $performanceBonus + $attendanceBonus;
+
+        if (in_array($benefitName, $recentSelections, true)) {
+            $eligibility -= 0.20;
+        }
+
+        if (Str::contains($benefitName, ['health', 'medical']) && Str::contains($departmentName, 'operations')) {
+            $eligibility += 0.10;
+        }
+        if (Str::contains($benefitName, ['training', 'development']) && Str::contains($roleName, 'engineer')) {
+            $eligibility += 0.12;
+        }
+
+        return max(0.05, min(0.98, round($eligibility, 2)));
+    }
+
+    protected function determineGapActions(
+        string $benefitName,
+        float $attendanceScore,
+        float $disciplineScore,
+        float $seniorityScore,
+        float $engagementScore,
+        float $performanceScore,
+        float $attendanceRate,
+        int $tenureMonths,
+        array $config
+    ): array {
+        $gapActions = [];
+        $minTenure = $config['min_tenure_months'];
+        $minPerformance = $config['min_performance'];
+        $minAttendance = $config['min_attendance'];
+
+        if ($tenureMonths < $minTenure) {
+            $monthsNeeded = $minTenure - $tenureMonths;
+            $gapActions[] = "Reach {$minTenure} months tenure (currently {$tenureMonths} months, needs {$monthsNeeded} more month(s))";
+        }
+
+        if ($performanceScore < $minPerformance) {
+            $gapActions[] = "Improve performance score from {$performanceScore} to {$minPerformance}+";
+        }
+
+        if ($attendanceRate < $minAttendance) {
+            $gapActions[] = "Improve attendance rate from {$attendanceRate}% to {$minAttendance}%+";
+        }
+
+        if ($attendanceScore < 75) {
+            $gapActions[] = "Reduce absences and late arrivals to improve attendance score";
+        }
+
+        if ($disciplineScore < 70) {
+            $gapActions[] = "Maintain clean disciplinary record";
+        }
+
+        if ($engagementScore < 65) {
+            $gapActions[] = "Increase team participation and engagement activities";
+        }
+
+        if (empty($gapActions)) {
+            $gapActions[] = "All requirements met - ready for assignment";
+        }
+
+        return $gapActions;
+    }
+
+    protected function determineStatus(float $eligibilityScore, array $gapActions): string
+    {
+        if ($eligibilityScore >= 0.85) {
+            return 'eligible';
+        }
+
+        if ($eligibilityScore >= 0.60) {
+            return 'nearly_eligible';
+        }
+
+        return 'not_eligible';
+    }
+
+    protected function estimateMonthsToQualify(array $gapActions, int $tenureMonths): int
+    {
+        if (empty($gapActions) || $gapActions[0] === 'All requirements met - ready for assignment') {
+            return 0;
+        }
+
+        $monthsNeeded = 0;
+
+        foreach ($gapActions as $action) {
+            if (preg_match('/needs (\d+) more month/i', $action, $matches)) {
+                $monthsNeeded = max($monthsNeeded, (int) $matches[1]);
+            }
+        }
+
+        foreach (['performance', 'attendance', 'disciplinary', 'engagement'] as $factor) {
+            if (preg_match("/{$factor}/i", implode(' ', $gapActions))) {
+                $monthsNeeded = max($monthsNeeded, 3);
+            }
+        }
+
+        return max(1, min(24, $monthsNeeded));
     }
 
     protected function normalizeRecommendation(array $item): array

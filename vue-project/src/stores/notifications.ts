@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { platformApi, type NotificationItem } from '@/api/laravel/platform'
-import { getUserReadNotificationsKey, isNetworkOrServerUnavailable } from '@/api/http'
+import { getUserReadNotificationsKey, logApiError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 
 export const useNotificationsStore = defineStore('notifications', () => {
@@ -38,9 +38,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
       items.value = applyReadState(combined)
     } catch (error) {
-      if (!isNetworkOrServerUnavailable(error)) {
-        console.error('Unable to fetch notifications', error)
-      }
+      logApiError('Fetch notifications', error)
     } finally {
       isLoading.value = false
     }
@@ -57,7 +55,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     try {
       await platformApi.markNotificationRead(id)
     } catch (error) {
-      console.error('Unable to persist notification read state', error)
+      logApiError('Mark notification read', error)
     }
   }
 
@@ -69,7 +67,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     try {
       await platformApi.markAllNotificationsRead()
     } catch (error) {
-      console.error('Unable to persist all-read notification state', error)
+      logApiError('Mark all notifications read', error)
     }
   }
 

@@ -228,7 +228,7 @@ function chooseTheme(nextTheme: 'light' | 'dark') {
               <div class="mt-3 space-y-2 text-slate-600 dark:text-slate-300">
                 <div>Timezone: {{ companySettings?.system?.timezone || 'UTC' }}</div>
                 <div>Locale: {{ companySettings?.system?.locale || 'en' }}</div>
-                <div>Currency: {{ companySettings?.system?.currency || 'USD' }}</div>
+                <div>Currency: {{ companySettings?.system?.currency || 'TND' }}</div>
               </div>
             </div>
           </CardContent>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
   LayoutDashboard,
@@ -18,10 +18,12 @@ import {
   ScanEye,
   Building2,
   BarChart3,
-  ShieldCheck
+  ShieldCheck,
+  MessageCircle
 } from 'lucide-vue-next'
 import { getAvatarUrl } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
+import { useMessagingStore } from '@/stores/messaging'
 import BrandMark from '@/components/common/BrandMark.vue'
 
 const props = defineProps<{ isOpen: boolean }>()
@@ -31,8 +33,11 @@ const router = useRouter()
 const route = useRoute()
 
 const auth = useAuthStore()
+const messagingStore = useMessagingStore()
 const user = computed(() => auth.user)
 const role = computed(() => user.value?.role ?? '')
+const canUseMessaging = computed(() => ['admin', 'rh_manager', 'manager'].includes(String(role.value)))
+let unreadInterval: ReturnType<typeof setInterval> | null = null
 
 const visibleLinks = computed(() => {
   const commonLinks = [
@@ -45,6 +50,12 @@ const visibleLinks = computed(() => {
       { name: 'Settings', href: '/settings', icon: Settings }
   ]
 
+  const isDepartmentHead = (() => {
+    const designation = user.value?.employee?.designation?.name?.toLowerCase() ?? ''
+    return designation.includes('head') || designation.includes('lead') || designation.includes('responsible')
+  })()
+
+  // Admin gets full access
   if (role.value === 'admin') {
     return [
       { name: 'Admin Command', href: '/admin', icon: LayoutDashboard },
@@ -56,6 +67,7 @@ const visibleLinks = computed(() => {
       { name: 'Insurance Hub', href: '/insurance', icon: FileText },
       { name: 'Insurance Claims', href: '/assurance/claims', icon: ShieldCheck },
       { name: 'AI Center', href: '/ai-analytics', icon: Sparkles },
+      { name: 'Messages', href: '/messages', icon: MessageCircle, badge: messagingStore.unreadCount },
       { name: 'Fraud Lab', href: '/documents', icon: ScanEye },
       { name: 'Agreements', href: '/rh/contracts', icon: FileText },
       { name: 'Social Hub', href: '/social/benefits', icon: Heart },
@@ -75,6 +87,7 @@ const visibleLinks = computed(() => {
       { name: 'Insurance Hub', href: '/insurance', icon: FileText },
       { name: 'Insurance Claims', href: '/assurance/claims', icon: ShieldCheck },
       { name: 'AI Center', href: '/ai-analytics', icon: Sparkles },
+      { name: 'Messages', href: '/messages', icon: MessageCircle, badge: messagingStore.unreadCount },
       { name: 'Fraud Lab', href: '/documents', icon: ScanEye },
       { name: 'Compliance', href: '/rh/contracts', icon: FileText },
       { name: 'Benefits', href: '/social/benefits', icon: Heart },
@@ -83,12 +96,14 @@ const visibleLinks = computed(() => {
     ]
   }
 
-  if (role.value === 'manager') {
+  // Department Head (designation contains "head", "lead", "responsible") - sees team
+  if (isDepartmentHead || role.value === 'manager') {
     return [
       { name: 'Team Dashboard', href: '/manager', icon: LayoutDashboard },
       { name: 'Employee Scores', href: '/social/scores', icon: BarChart3 },
       { name: 'Insurance Claims', href: '/assurance/claims', icon: ShieldCheck },
       { name: 'AI Center', href: '/ai-analytics', icon: Sparkles },
+      { name: 'Messages', href: '/messages', icon: MessageCircle, badge: messagingStore.unreadCount },
       ...commonLinks.filter((item) => item.name !== 'Dashboard')
     ]
   }
@@ -109,6 +124,17 @@ const handleLogout = async () => {
   await auth.logout()
   router.push('/login')
 }
+
+onMounted(() => {
+  if (canUseMessaging.value) {
+    void messagingStore.fetchUnreadCount()
+    unreadInterval = setInterval(() => void messagingStore.fetchUnreadCount(), 15000)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (unreadInterval) clearInterval(unreadInterval)
+})
 
 const getInitials = (name: string) => {
   if (!name) return 'U'
@@ -159,6 +185,12 @@ const getInitials = (name: string) => {
           >
             <component :is="item.icon" :class="['mr-3 h-5 w-5 transition-transform duration-300', route.path === item.href ? 'scale-110' : 'group-hover:scale-110']" />
             <span class="flex-1">{{ item.name }}</span>
+            <span
+              v-if="item.badge"
+              class="mr-2 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white"
+            >
+              {{ item.badge > 99 ? '99+' : item.badge }}
+            </span>
             <ChevronRight v-if="route.path === item.href" class="h-4 w-4 opacity-50" />
             
             <!-- Passive indicator -->

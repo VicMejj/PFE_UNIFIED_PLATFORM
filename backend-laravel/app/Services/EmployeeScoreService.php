@@ -5,11 +5,13 @@ namespace App\Services;
 use App\Models\Employee\Employee;
 use App\Models\Employee\EmployeeScore;
 use App\Models\Employee\EmployeeScoreHistory;
+use App\Models\Employee\EmployeeScoreNote;
 use App\Models\Attendance\AttendanceRecord;
 use App\Models\Leave\Leave;
 use App\Models\Performance\Appraisal;
 use App\Models\Employee\Warning;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 
 class EmployeeScoreService
 {
@@ -18,9 +20,19 @@ class EmployeeScoreService
      */
     public function calculateScore(Employee $employee): EmployeeScore
     {
-        $attendanceScore = $this->calculateAttendanceScore($employee);
-        $performanceScore = $this->calculatePerformanceScore($employee);
-        $disciplineScore = $this->calculateDisciplineScore($employee);
+        $notes = EmployeeScoreNote::forEmployee($employee->id)
+            ->where(function (Builder $query) {
+                $query
+                    ->whereNull('period_end')
+                    ->orWhere('period_end', '>=', Carbon::now()->subMonths(3));
+            })
+            ->get();
+        
+        $notesAdjustment = $this->calculateNotesAdjustment($notes);
+        
+        $attendanceScore = $this->calculateAttendanceScore($employee, $notes);
+        $performanceScore = $this->calculatePerformanceScore($employee, $notes);
+        $disciplineScore = $this->calculateDisciplineScore($employee, $notes);
         $seniorityScore = $this->calculateSeniorityScore($employee);
         $engagementScore = $this->calculateEngagementScore($employee);
 
@@ -31,6 +43,8 @@ class EmployeeScoreService
             $seniorityScore,
             $engagementScore
         );
+        
+        $overallScore = min(100, max(0, $overallScore + $notesAdjustment));
 
         $scoreTier = EmployeeScore::calculateTier($overallScore);
         $scoreFactors = $this->generateScoreFactors(
@@ -38,14 +52,16 @@ class EmployeeScoreService
             $performanceScore,
             $disciplineScore,
             $seniorityScore,
-            $engagementScore
+            $engagementScore,
+            $notesAdjustment
         );
 
         $improvementSuggestions = $this->generateImprovementSuggestions(
             $attendanceScore,
             $performanceScore,
             $disciplineScore,
-            $engagementScore
+            $engagementScore,
+            $notes
         );
 
         $scoreData = [
@@ -68,11 +84,32 @@ class EmployeeScoreService
 
         return $score;
     }
+    
+    protected function calculateNotesAdjustment($notes): float
+    {
+        $totalAdjustment = 0;
+        
+        foreach ($notes as $note) {
+            $noteAdjustment = (float) ($note->score_adjustment ?? 0);
+            $noteAge = $note->created_at?->diffInDays(now()) ?? 0;
+            
+            $ageFactor = match(true) {
+                $noteAge <= 30 => 1.0,
+                $noteAge <= 90 => 0.7,
+                $noteAge <= 180 => 0.4,
+                default => 0.2,
+            };
+            
+            $totalAdjustment += $noteAdjustment * $ageFactor;
+        }
+        
+        return min(20, max(-20, $totalAdjustment));
+    }
 
     /**
      * Calculate attendance score based on presence and punctuality
      */
-    protected function calculateAttendanceScore(Employee $employee): float
+    protected function calculateAttendanceScore(Employee $employee, $notes = null): float
     {
         $score = 100;
         $threeMonthsAgo = Carbon::now()->subMonths(3);
@@ -102,17 +139,25 @@ class EmployeeScoreService
 
         $score = ($attendanceRate * 60) - $absenceDeduction - $lateDeduction + 40;
 
+        if ($notes && $notes->isNotEmpty()) {
+            $attendanceNotes = $notes->flatMap(fn($n) => $n->attendance_note ?? []);
+            $ratings = collect($attendanceNotes)->pluck('rating')->filter()->values();
+            if ($ratings->isNotEmpty()) {
+                $noteScore = $this->ratingsToPercentage($ratings);
+                $score = ($score * 0.7) + ($noteScore * 0.3);
+            }
+        }
+
         return max(0, min(100, $score));
     }
 
     /**
      * Calculate performance score based on appraisals and task completion
      */
-    protected function calculatePerformanceScore(Employee $employee): float
+    protected function calculatePerformanceScore(Employee $employee, $notes = null): float
     {
-        $score = 75; // Default score
+        $score = 75;
 
-        // Get recent appraisals
         $appraisals = Appraisal::where('employee_id', $employee->id)
             ->orderByDesc('created_at')
             ->limit(3)
@@ -122,6 +167,15 @@ class EmployeeScoreService
             $avgRating = $appraisals->avg('rating') ?? 3;
             $score = ($avgRating / 5) * 100;
         }
+        
+        if ($notes && $notes->isNotEmpty()) {
+            $performanceNotes = $notes->flatMap(fn($n) => $n->performance_note ?? []);
+            $ratings = collect($performanceNotes)->pluck('rating')->filter()->values();
+            if ($ratings->isNotEmpty()) {
+                $noteScore = $this->ratingsToPercentage($ratings);
+                $score = ($score * 0.6) + ($noteScore * 0.4);
+            }
+        }
 
         return max(0, min(100, $score));
     }
@@ -129,17 +183,15 @@ class EmployeeScoreService
     /**
      * Calculate discipline score based on warnings and violations
      */
-    protected function calculateDisciplineScore(Employee $employee): float
+    protected function calculateDisciplineScore(Employee $employee, $notes = null): float
     {
         $score = 100;
         $oneYearAgo = Carbon::now()->subYear();
 
-        // Get warnings for last year
         $warnings = Warning::where('employee_id', $employee->id)
             ->where('created_at', '>=', $oneYearAgo)
             ->get();
 
-        // Deduct points for warnings
         foreach ($warnings as $warning) {
             $warningAge = $warning->created_at->diffInMonths();
             if ($warningAge <= 1) $score -= 20;
@@ -148,7 +200,6 @@ class EmployeeScoreService
             else $score -= 5;
         }
 
-        // Incorporate Workplace Incidents (Accidencies)
         $incidents = \App\Models\Employee\WorkplaceIncident::where('employee_id', $employee->id)
             ->where('incident_date', '>=', $oneYearAgo)
             ->get();
@@ -157,7 +208,6 @@ class EmployeeScoreService
             $incidentAge = Carbon::parse($incident->incident_date)->diffInMonths();
             $deduction = 0;
 
-            // Higher severity = higher deduction
             switch ($incident->severity) {
                 case 'critical': $deduction = 40; break;
                 case 'high': $deduction = 25; break;
@@ -171,7 +221,21 @@ class EmployeeScoreService
             else $score -= ($deduction * 0.4);
         }
 
+        if ($notes && $notes->isNotEmpty()) {
+            $disciplineNotes = $notes->flatMap(fn($n) => $n->discipline_note ?? []);
+            $ratings = collect($disciplineNotes)->pluck('rating')->filter()->values();
+            if ($ratings->isNotEmpty()) {
+                $noteScore = $this->ratingsToPercentage($ratings);
+                $score = ($score * 0.7) + ($noteScore * 0.3);
+            }
+        }
+
         return max(0, min(100, $score));
+    }
+
+    protected function ratingsToPercentage($ratings): float
+    {
+        return max(0, min(100, (($ratings->avg() ?? 0) / 10) * 100));
     }
 
     /**
@@ -240,7 +304,8 @@ class EmployeeScoreService
         float $performance,
         float $discipline,
         float $seniority,
-        float $engagement
+        float $engagement,
+        float $notesAdjustment = 0
     ): array {
         return [
             'attendance' => [
@@ -273,6 +338,12 @@ class EmployeeScoreService
                 'contribution' => round($engagement * 0.15, 2),
                 'status' => $engagement >= 80 ? 'good' : ($engagement >= 60 ? 'average' : 'needs_improvement'),
             ],
+            'manager_adjustment' => [
+                'score' => round($notesAdjustment, 2),
+                'weight' => 0,
+                'contribution' => round($notesAdjustment, 2),
+                'status' => $notesAdjustment > 0 ? 'positive' : ($notesAdjustment < 0 ? 'negative' : 'neutral'),
+            ],
         ];
     }
 
@@ -283,7 +354,8 @@ class EmployeeScoreService
         float $attendance,
         float $performance,
         float $discipline,
-        float $engagement
+        float $engagement,
+        $notes = null
     ): array {
         $suggestions = [];
 
@@ -306,6 +378,13 @@ class EmployeeScoreService
         if ($engagement < 70) {
             $suggestions[] = 'Participate more actively in team meetings and discussions.';
             $suggestions[] = 'Engage in company events and team building activities.';
+        }
+
+        if ($notes && $notes->isNotEmpty()) {
+            $latestNote = $notes->first();
+            if ($latestNote?->general_note) {
+                $suggestions[] = 'Manager note: ' . $latestNote->general_note;
+            }
         }
 
         if (empty($suggestions)) {

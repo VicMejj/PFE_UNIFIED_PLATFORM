@@ -86,6 +86,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Application Currency
+    |--------------------------------------------------------------------------
+    |
+    | This value is the default currency label used across payroll, reports,
+    | and settings when no database override has been configured yet.
+    |
+    */
+
+    'currency' => env('APP_CURRENCY', 'TND'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Encryption Key
     |--------------------------------------------------------------------------
     |

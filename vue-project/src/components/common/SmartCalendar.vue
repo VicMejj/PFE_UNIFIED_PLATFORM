@@ -12,6 +12,7 @@ import {
   Info
 } from 'lucide-vue-next'
 import { platformApi } from '@/api/laravel/platform'
+import { logApiError } from '@/api/http'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
@@ -123,7 +124,7 @@ async function fetchEvents() {
     const data = await platformApi.getEvents({ month: viewedMonth.value + 1, year: viewedYear.value })
     events.value = Array.isArray(data) ? data : (data as any).data || []
   } catch (err) {
-    console.error('Failed to fetch events', err)
+    logApiError('Fetch calendar events', err)
   } finally {
     isLoading.value = false
   }

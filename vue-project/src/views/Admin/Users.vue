@@ -43,7 +43,11 @@ const fetchUsers = async () => {
   errorMessage.value = ''
   try {
     const response = await coreApi.getUsers()
-    users.value = unwrapItems<any>(response)
+    users.value = unwrapItems<any>(response).map((user) => ({
+      ...user,
+      selectedRole: Array.isArray(user.roles) && user.roles.length ? user.roles[0] : 'user',
+      status: user.is_disable ? 'suspended' : user.is_active ? 'active' : 'inactive'
+    }))
   } catch (err) {
     console.error('Failed to fetch users', err)
     errorMessage.value = 'Unable to load users.'
@@ -116,6 +120,24 @@ const activateUser = async (userId: number) => {
   } catch (err) {
     console.error('Failed to activate user', err)
     errorMessage.value = 'Unable to activate user.'
+  } finally {
+    isActionLoading.value = false
+  }
+}
+
+const updateUserRole = async (user: any) => {
+  isActionLoading.value = true
+  feedback.value = ''
+  errorMessage.value = ''
+
+  try {
+    const nextRole = String(user.selectedRole || 'user')
+    await coreApi.syncUserRoles(user.id, { roles: [nextRole] })
+    feedback.value = `${user.name} is now assigned to ${nextRole.toUpperCase()}.`
+    await fetchUsers()
+  } catch (err: any) {
+    console.error('Failed to update role', err)
+    errorMessage.value = err.response?.data?.message || 'Unable to update user role.'
   } finally {
     isActionLoading.value = false
   }
@@ -198,6 +220,7 @@ onMounted(() => {
               <tr class="border-b">
                 <th class="px-4 py-2 text-left text-sm font-medium">Name</th>
                 <th class="px-4 py-2 text-left text-sm font-medium">Email</th>
+                <th class="px-4 py-2 text-left text-sm font-medium">Role</th>
                 <th class="px-4 py-2 text-left text-sm font-medium">Status</th>
                 <th class="px-4 py-2 text-left text-sm font-medium">Actions</th>
               </tr>
@@ -206,6 +229,16 @@ onMounted(() => {
               <tr v-for="user in users" :key="user.id" class="border-b hover:bg-gray-50 dark:hover:bg-gray-900/20">
                 <td class="px-4 py-2 text-sm">{{ user.name }}</td>
                 <td class="px-4 py-2 text-sm">{{ user.email }}</td>
+                <td class="px-4 py-2 text-sm">
+                  <div class="flex items-center gap-2">
+                    <select v-model="user.selectedRole" class="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm">
+                      <option v-for="role in roles" :key="role.id" :value="role.name">{{ role.name }}</option>
+                    </select>
+                    <Button size="sm" variant="outline" :disabled="isActionLoading" @click="updateUserRole(user)">
+                      Save
+                    </Button>
+                  </div>
+                </td>
                 <td class="px-4 py-2 text-sm">
                   <Badge :variant="getStatusVariant(user.status)">{{ user.status }}</Badge>
                 </td>

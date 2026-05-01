@@ -259,7 +259,7 @@ class AuthController extends ApiController
      */
     public function me()
     {
-        $user = auth()->user()->load('roles', 'permissions');
+        $user = auth()->user()->load(['roles', 'permissions', 'employee.department', 'employee.designation']);
 
         return $this->successResponse([
             'user' => $user,

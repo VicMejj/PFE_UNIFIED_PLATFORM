@@ -36,6 +36,7 @@ const Documents = () => import('@/views/Documents.vue')
 const InsuranceHub = () => import('@/views/InsuranceHub.vue')
 const Chatbot = () => import('@/views/Chatbot.vue')
 const AIAnalytics = () => import('@/views/AIAnalytics.vue')
+const Chat = () => import('@/views/Chat.vue')
 const AdminUsers = () => import('@/views/Admin/Users.vue')
 const AdminRoles = () => import('@/views/Admin/Roles.vue')
 const AdminOrganization = () => import('@/views/Admin/Organization.vue')
@@ -105,6 +106,9 @@ const routes = [
       // AI Features (restricted to admin/manager/rh)
       { path: 'chatbot', name: 'chatbot', component: Chatbot, meta: { restrictedRoles: ['admin', 'manager', 'rh_manager'] } },
       { path: 'ai-analytics', name: 'ai-analytics', component: AIAnalytics, meta: { restrictedRoles: ['admin', 'manager', 'rh_manager'] } },
+
+      // Messaging (HR ↔ Manager)
+      { path: 'messages', name: 'messages', component: Chat, meta: { restrictedRoles: ['admin', 'manager', 'rh_manager'] } },
 
       // Insurance (admin/rh only)
       { path: 'assurance/policies', name: 'policies', component: AssurancePolicies, meta: { restrictedRoles: ['admin', 'rh_manager'] } },

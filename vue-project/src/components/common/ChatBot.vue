@@ -197,7 +197,7 @@ const handleSendMessage = async () => {
   } catch (error: any) {
     if (!isRequestCanceled(error)) {
       const errorText = isNetworkFailure(error)
-        ? 'The Django AI service is offline right now, so I switched to a local fallback.'
+        ? "I'm here to help! The AI service is temporarily unavailable, but I can still assist with basic queries. What would you like to know?"
         : error?.response?.data?.error || error?.message || "Sorry, I couldn't reach the server right now."
       messages.value.push(createMessage(errorText, 'bot'))
     }
