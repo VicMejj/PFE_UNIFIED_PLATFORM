@@ -86,14 +86,16 @@ export const useMessagingStore = defineStore('messaging', () => {
     if (!userId) return
     
     try {
-      const newMessages = (await messagingApi.getNewMessages(userId)).map(normalizeMessage)
+      const afterId = getLatestMessageId(userId)
+      const newMessages = (await messagingApi.getNewMessages(userId, afterId)).map(normalizeMessage)
       
       if (newMessages.length > 0) {
         const existingIds = new Set(currentConversation.value.map(m => m.id))
         const onlyNew = newMessages.filter(m => !existingIds.has(m.id))
         
         if (onlyNew.length > 0) {
-          currentConversation.value = [...currentConversation.value, ...onlyNew].sort(
+          onlyNew.forEach(addMessage)
+          currentConversation.value = [...currentConversation.value].sort(
             (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
           )
           
@@ -165,6 +167,15 @@ export const useMessagingStore = defineStore('messaging', () => {
       await messagingApi.markAsRead(messageId)
     } catch (error) {
       console.error('Failed to mark as read:', error)
+    }
+  }
+
+  async function markConversationAsDelivered(userId: number) {
+    try {
+      await messagingApi.markConversationAsDelivered(userId)
+      markConversationMessagesAsDelivered(userId)
+    } catch (error) {
+      console.warn('Failed to mark conversation as delivered:', error)
     }
   }
 
@@ -280,12 +291,14 @@ export const useMessagingStore = defineStore('messaging', () => {
 
   function setMessageStatus(messageId: number, status: ChatStatus) {
     currentConversation.value = currentConversation.value.map(message =>
-      message.id === messageId ? { ...message, status } : message
+      message.id === messageId
+        ? { ...message, status: resolveMessageStatus(message.status, status) }
+        : message
     )
 
     const target = currentConversation.value.find(message => message.id === messageId)
     if (target) {
-      syncConversationPreview({ ...target, status })
+      syncConversationPreview(target)
     }
   }
 
@@ -293,6 +306,20 @@ export const useMessagingStore = defineStore('messaging', () => {
     currentConversation.value = currentConversation.value.map(message => {
       if (message.sender_id === userId && message.receiver_id === currentUserId.value) {
         return { ...message, status: 'read' }
+      }
+
+      return message
+    })
+  }
+
+  function markConversationMessagesAsDelivered(userId: number) {
+    currentConversation.value = currentConversation.value.map(message => {
+      if (
+        message.sender_id === userId
+        && message.receiver_id === currentUserId.value
+        && message.status === 'sent'
+      ) {
+        return { ...message, status: 'delivered' }
       }
 
       return message
@@ -394,6 +421,22 @@ export const useMessagingStore = defineStore('messaging', () => {
     return message.sender_id === activeUserId.value || message.receiver_id === activeUserId.value
   }
 
+  function getLatestMessageId(userId: number) {
+    return currentConversation.value
+      .filter(message => message.sender_id === userId || message.receiver_id === userId)
+      .reduce((latestId, message) => Math.max(latestId, message.id), 0)
+  }
+
+  function resolveMessageStatus(currentStatus: ChatStatus, nextStatus: ChatStatus): ChatStatus {
+    const rank: Record<ChatStatus, number> = {
+      sent: 0,
+      delivered: 1,
+      read: 2,
+    }
+
+    return rank[nextStatus] >= rank[currentStatus] ? nextStatus : currentStatus
+  }
+
   function syncConversationPreview(message: ChatMessage) {
     const otherUserId = message.sender_id === currentUserId.value ? message.receiver_id : message.sender_id
     const preview = {
@@ -477,6 +520,7 @@ export const useMessagingStore = defineStore('messaging', () => {
     sendMessage,
     setTyping,
     markAsRead,
+    markConversationAsDelivered,
     fetchUnreadCount,
     setOnline,
     setOffline,

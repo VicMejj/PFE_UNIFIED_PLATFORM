@@ -3,20 +3,34 @@
 namespace App\Http\Controllers\Api\Core;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\Language;
 use App\Http\Controllers\Api\CrudTrait;
+use App\Models\Misc\Language;
 use Illuminate\Http\Request;
 
 class LanguageController extends ApiController
 {
     use CrudTrait;
 
-    protected $modelClass = \App\Models\Language::class;
-    protected $validationRules = [];
+    protected $modelClass = Language::class;
+    protected $storeValidationRules = [
+        'code' => 'required|string|in:en,fr|unique:languages,code',
+        'name' => 'required|string|max:255',
+        'is_active' => 'sometimes|boolean',
+    ];
+    protected $updateValidationRules = [
+        'code' => 'sometimes|string|in:en,fr',
+        'name' => 'sometimes|string|max:255',
+        'is_active' => 'sometimes|boolean',
+    ];
 
     public function index(Request $request)
     {
-        return $this->crudIndex($request);
+        $languages = Language::query()
+            ->whereIn('code', ['en', 'fr'])
+            ->orderBy('code')
+            ->paginate();
+
+        return $this->successResponse($languages);
     }
 
     public function store(Request $request)
@@ -36,6 +50,6 @@ class LanguageController extends ApiController
 
     public function destroy($id)
     {
-        return $this->crudDestroy($id);
+        return $this->errorResponse('Platform languages are fixed to English and French.', 403);
     }
 }

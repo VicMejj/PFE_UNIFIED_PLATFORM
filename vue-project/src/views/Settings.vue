@@ -7,7 +7,6 @@ import CardDescription from '@/components/ui/CardDescription.vue'
 import CardHeader from '@/components/ui/CardHeader.vue'
 import CardTitle from '@/components/ui/CardTitle.vue'
 import Button from '@/components/ui/Button.vue'
-import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import { platformApi } from '@/api/laravel/platform'
 import { useTheme } from '@/composables/useTheme'
@@ -23,7 +22,6 @@ const errorMsg = ref('')
 
 const preferencesForm = reactive({
   lang: 'en',
-  messenger_color: '#2563eb'
 })
 
 const passwordForm = reactive({
@@ -36,7 +34,6 @@ watch(
   () => auth.user,
   (user) => {
     preferencesForm.lang = user?.lang ?? 'en'
-    preferencesForm.messenger_color = user?.messenger_color ?? '#2563eb'
   },
   { immediate: true }
 )
@@ -144,23 +141,16 @@ function chooseTheme(nextTheme: 'light' | 'dark') {
               </button>
             </div>
 
-            <div class="grid gap-5 md:grid-cols-2">
-              <div class="space-y-2">
-                <Label for="settings-lang">Language</Label>
-                <select
-                  id="settings-lang"
-                  v-model="preferencesForm.lang"
-                  class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="en">English</option>
-                  <option value="fr">French</option>
-                  <option value="ar">Arabic</option>
-                </select>
-              </div>
-              <div class="space-y-2">
-                <Label for="settings-color">Accent Color</Label>
-                <Input id="settings-color" v-model="preferencesForm.messenger_color" type="color" class="h-10 p-1" />
-              </div>
+            <div class="max-w-sm space-y-2">
+              <Label for="settings-lang">Language</Label>
+              <select
+                id="settings-lang"
+                v-model="preferencesForm.lang"
+                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="en">English</option>
+                <option value="fr">French</option>
+              </select>
             </div>
 
             <div class="flex justify-end">

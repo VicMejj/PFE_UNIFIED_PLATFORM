@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { clearStoredAuth, getStoredToken } from '@/utils/authStorage'
+import { getStoredLocale } from '@/utils/localeStorage'
 
 type ThemeAwareUser = {
   id?: number
@@ -13,10 +14,15 @@ function redirectToLogin() {
 
 function attachAuthToken(config: any) {
   const token = getStoredToken()
+  const locale = getStoredLocale()
+
+  config.headers = config.headers ?? {}
+
   if (token) {
-    config.headers = config.headers ?? {}
     config.headers.Authorization = `Bearer ${token}`
   }
+
+  config.headers['Accept-Language'] = locale
 
   return config
 }

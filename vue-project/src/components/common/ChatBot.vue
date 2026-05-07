@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Bot, MessageCircle, Send, Square, X } from 'lucide-vue-next'
 import { djangoAiApi } from '@/api/django/ai'
 import { useAuthStore } from '@/stores/auth'
+import { looksPlatformRelatedMessage, parseChatMessage } from '@/utils/chatMessageFormatting'
 
 interface Message {
   id: string
@@ -18,7 +19,7 @@ interface StoredMessage {
 }
 
 const ASSISTANT_NAME = 'Mejj'
-const ASSISTANT_TAGLINE = 'Your HR AI assistant'
+const ASSISTANT_TAGLINE = 'Smart AI assistant'
 
 const auth = useAuthStore()
 const isOpen = ref(false)
@@ -29,6 +30,7 @@ const isHydrated = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 const chatWindowRef = ref<HTMLElement | null>(null)
 const activeRequestController = ref<AbortController | null>(null)
+const pendingStatusLines = ref<string[]>([])
 const storageScope = computed(() => auth.user?.id ?? 'guest')
 const sessionStorageKey = computed(() => `chatbot_session_id_${storageScope.value}`)
 const messagesStorageKey = computed(() => `chatbot_messages_${storageScope.value}`)
@@ -45,7 +47,10 @@ function createMessage(text: string, sender: 'user' | 'bot'): Message {
 }
 
 function createWelcomeMessage(): Message {
-  return createMessage(`Hello! I'm ${ASSISTANT_NAME}, your HR assistant. How can I help you today?`, 'bot')
+  return createMessage(
+    `Hello! I'm ${ASSISTANT_NAME}. I can help with platform data, HR workflows, math, daily life, coding — really anything you'd like to know. What's on your mind?`,
+    'bot'
+  )
 }
 
 function restoreMessages(rawMessages: string | null): Message[] {
@@ -168,11 +173,19 @@ const stopCurrentRequest = (announceStop = true) => {
   activeRequestController.value.abort()
   activeRequestController.value = null
   isTyping.value = false
+  pendingStatusLines.value = []
   if (announceStop) {
     messages.value.push(createMessage('Request stopped. Send another message whenever you are ready.', 'bot'))
   }
   scrollToBottom()
 }
+
+const getPendingStatusLines = (message: string) =>
+  looksPlatformRelatedMessage(message)
+    ? ['[thinking]', '[checking platform data]']
+    : ['[reasoning about your question]']
+
+const getMessageSegments = (text: string) => parseChatMessage(text)
 
 const handleSendMessage = async () => {
   const trimmedMessage = inputMessage.value.trim()
@@ -183,6 +196,7 @@ const handleSendMessage = async () => {
   messages.value.push(userMessage)
   inputMessage.value = ''
   isTyping.value = true
+  pendingStatusLines.value = getPendingStatusLines(userMessage.text)
   activeRequestController.value = controller
   scrollToBottom()
 
@@ -204,6 +218,7 @@ const handleSendMessage = async () => {
   } finally {
     if (activeRequestController.value === controller) activeRequestController.value = null
     isTyping.value = false
+    pendingStatusLines.value = []
     scrollToBottom()
   }
 }
@@ -263,7 +278,14 @@ function formatTime(date: Date): string {
           </div>
 
           <div class="chat-msg__content">
-            <div class="chat-msg__bubble">{{ message.text }}</div>
+            <div class="chat-msg__bubble">
+              <template v-for="segment in getMessageSegments(message.text)" :key="segment.key">
+                <div v-if="segment.kind === 'status'" class="chat-msg__status-line">{{ segment.text }}</div>
+                <h4 v-else-if="segment.kind === 'heading'" class="chat-msg__heading">{{ segment.text }}</h4>
+                <div v-else-if="segment.kind === 'bullet'" class="chat-msg__bullet">• {{ segment.text }}</div>
+                <p v-else class="chat-msg__line" :class="{ 'chat-msg__line--bold': segment.bold }">{{ segment.text }}</p>
+              </template>
+            </div>
             <p class="chat-msg__time">{{ formatTime(message.timestamp) }}</p>
           </div>
         </div>
@@ -275,9 +297,20 @@ function formatTime(date: Date): string {
           </div>
           <div class="chat-msg__content">
             <div class="chat-msg__bubble chat-msg__bubble--typing">
-              <span class="typing-dot" style="animation-delay: 0ms" />
-              <span class="typing-dot" style="animation-delay: 160ms" />
-              <span class="typing-dot" style="animation-delay: 320ms" />
+              <div class="chat-msg__status-stack">
+                <div
+                  v-for="statusLine in pendingStatusLines.length ? pendingStatusLines : ['[thinking]']"
+                  :key="statusLine"
+                  class="chat-msg__status-line"
+                >
+                  {{ statusLine }}
+                </div>
+              </div>
+              <div class="chat-msg__typing-row">
+                <span class="typing-dot" style="animation-delay: 0ms" />
+                <span class="typing-dot" style="animation-delay: 160ms" />
+                <span class="typing-dot" style="animation-delay: 320ms" />
+              </div>
             </div>
           </div>
         </div>
@@ -443,6 +476,7 @@ function formatTime(date: Date): string {
   font-size: 13.5px;
   line-height: 1.5;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 .chat-msg--user .chat-msg__bubble {
   background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
@@ -459,6 +493,30 @@ function formatTime(date: Date): string {
   background: #1e293b;
   color: #f1f5f9;
 }
+.chat-msg__line {
+  margin: 0;
+}
+.chat-msg__line + .chat-msg__line {
+  margin-top: 6px;
+}
+.chat-msg__status-line {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #e2e8f0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 8px;
+}
+.dark .chat-msg__status-line {
+  border-color: #334155;
+  background: #0f172a;
+  color: #94a3b8;
+}
 
 /* ── Time ── */
 .chat-msg__time {
@@ -471,9 +529,20 @@ function formatTime(date: Date): string {
 /* ── Typing indicator ── */
 .chat-msg__bubble--typing {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 16px;
+}
+.chat-msg__status-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.chat-msg__typing-row {
+  display: flex;
   align-items: center;
   gap: 5px;
-  padding: 12px 16px;
 }
 .typing-dot {
   width: 7px; height: 7px;
@@ -597,5 +666,25 @@ function formatTime(date: Date): string {
   0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35); }
   70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
   100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+/* ── Rich message formatting ── */
+.chat-msg__heading {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 6px 0 2px;
+  color: #0f172a;
+}
+.dark .chat-msg__heading { color: #f1f5f9; }
+
+.chat-msg__bullet {
+  font-size: 13px;
+  line-height: 1.5;
+  padding-left: 4px;
+  margin: 1px 0;
+}
+
+.chat-msg__line--bold {
+  font-weight: 600;
 }
 </style>

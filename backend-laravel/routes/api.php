@@ -388,6 +388,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('send', [App\Http\Controllers\Api\Messaging\MessageController::class, 'sendMessage']);
         Route::post('typing', [App\Http\Controllers\Api\Messaging\MessageController::class, 'setTyping']);
         Route::post('mark-read/{messageId}', [App\Http\Controllers\Api\Messaging\MessageController::class, 'markAsRead']);
+        Route::post('mark-conversation-delivered/{userId}', [App\Http\Controllers\Api\Messaging\MessageController::class, 'markConversationAsDelivered']);
         Route::post('mark-conversation-read/{userId}', [App\Http\Controllers\Api\Messaging\MessageController::class, 'markConversationAsRead']);
         Route::get('unread-count', [App\Http\Controllers\Api\Messaging\MessageController::class, 'getUnreadCount']);
         Route::get('online-status', [App\Http\Controllers\Api\Messaging\MessageController::class, 'getOnlineStatus']);

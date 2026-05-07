@@ -13,6 +13,7 @@ const { isRealtimeConfigured, subscribeToMessages, subscribeToMessagingChannel, 
 
 const searchQuery = ref('')
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let pollIntervalMs: number | null = null
 let stopRealtimeWatch: (() => void) | null = null
 function getRealtimeStatus() {
   return messagingStore.realtimeStatus || (messagingStore.realtimeAvailable ? 'live' : 'fallback')
@@ -59,37 +60,42 @@ const realtimeNotice = computed(() => {
   return null
 })
 
-function startPolling() {
-  if (pollTimer) return
-
-  updateRealtimeStatus('fallback')
-  
+async function runBackgroundSync() {
   const pollActiveConversation = async () => {
-    if (messagingStore.activeUserId) {
-      try {
-        await messagingStore.fetchMessagesSince(messagingStore.activeUserId)
-      } catch (e) {
-        console.warn('Polling error:', e)
-      }
+    if (!messagingStore.activeUserId) return
+
+    try {
+      await messagingStore.fetchMessagesSince(messagingStore.activeUserId)
+    } catch (e) {
+      console.warn('Polling error:', e)
     }
   }
-  
-  pollTimer = setInterval(async () => {
-    try {
-      await messagingStore.fetchConversations()
-      await messagingStore.fetchUnreadCount()
-      await messagingStore.fetchContacts(searchQuery.value)
-      await pollActiveConversation()
-    } catch (e) {
-      console.warn('Background polling error:', e)
-    }
-  }, 5000)
+
+  try {
+    await messagingStore.fetchConversations()
+    await messagingStore.fetchUnreadCount()
+    await messagingStore.fetchContacts(searchQuery.value)
+    await pollActiveConversation()
+  } catch (e) {
+    console.warn('Background polling error:', e)
+  }
+}
+
+function startPolling(intervalMs = 5000) {
+  if (pollTimer && pollIntervalMs === intervalMs) return
+
+  stopPolling()
+  pollIntervalMs = intervalMs
+  pollTimer = setInterval(() => {
+    void runBackgroundSync()
+  }, intervalMs)
 }
 
 function stopPolling() {
   if (!pollTimer) return
   clearInterval(pollTimer)
   pollTimer = null
+  pollIntervalMs = null
 }
 
 onMounted(async () => {
@@ -102,13 +108,14 @@ onMounted(async () => {
   
   if (authStore.user?.id && isRealtimeConfigured) {
     stopRealtimeWatch = watchRealtimeStatus({
-      onConnected: stopPolling,
-      onDisconnected: startPolling,
+      onConnected: () => startPolling(8000),
+      onDisconnected: () => startPolling(5000),
     })
     subscribeToMessages(authStore.user.id)
     subscribeToMessagingChannel()
+    startPolling(8000)
   } else {
-    startPolling()
+    startPolling(5000)
   }
 })
 

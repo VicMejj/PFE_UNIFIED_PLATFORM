@@ -57,7 +57,7 @@ class UserController extends ApiController
             'role_id' => 'nullable|exists:roles,id',
             'type' => 'sometimes|string|max:50',
             'avatar' => 'sometimes|string|max:255',
-            'lang' => 'sometimes|string|max:10',
+            'lang' => 'sometimes|in:en,fr',
         ]);
 
         if ($validator->fails()) {
@@ -122,6 +122,7 @@ class UserController extends ApiController
             'name' => 'sometimes|string|max:255',
             'email' => 'sometimes|email|unique:users,email,' . $id,
             'password' => 'sometimes|string|min:6|confirmed',
+            'lang' => 'sometimes|in:en,fr',
         ]);
 
         if ($validator->fails()) {
@@ -138,6 +139,10 @@ class UserController extends ApiController
 
         if ($request->has('password')) {
             $user->password = Hash::make($request->password);
+        }
+
+        if ($request->has('lang')) {
+            $user->lang = $request->lang ?? 'en';
         }
 
         $user->save();

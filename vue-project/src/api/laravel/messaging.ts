@@ -61,8 +61,10 @@ export const messagingApi = {
     return data?.messages || []
   },
 
-  async getNewMessages(userId: number): Promise<ChatMessage[]> {
-    const response = await laravelApi.get(`/messaging/new-messages/${userId}`)
+  async getNewMessages(userId: number, afterId?: number): Promise<ChatMessage[]> {
+    const response = await laravelApi.get(`/messaging/new-messages/${userId}`, {
+      params: afterId ? { after_id: afterId } : undefined,
+    })
     const data = unwrapResponse<{ messages?: ChatMessage[] }>(response)
     return data?.messages || []
   },
@@ -101,6 +103,10 @@ export const messagingApi = {
 
   async markConversationAsRead(userId: number): Promise<void> {
     await laravelApi.post(`/messaging/mark-conversation-read/${userId}`)
+  },
+
+  async markConversationAsDelivered(userId: number): Promise<void> {
+    await laravelApi.post(`/messaging/mark-conversation-delivered/${userId}`)
   },
 
   async getUnreadCount(): Promise<number> {

@@ -21,32 +21,43 @@ export function useRealTimeMessages() {
       echo.private(`user.${userId}`)
         .listen('.new-message', (event: any) => {
           if (event.message) {
+            const messageId = Number(event.message.id)
+            const senderId = Number(event.message.sender_id)
+            const receiverId = Number(event.message.receiver_id)
+
             messagingStore.syncIncomingMessage(event.message)
 
             if (
-              messagingStore.activeUserId === event.message.sender_id &&
-              messagingStore.currentUserId === event.message.receiver_id
+              messagingStore.activeUserId === senderId &&
+              messagingStore.currentUserId === receiverId
             ) {
-              messagingStore.setMessageStatus(event.message.id, 'read')
-              messagingStore.markAsRead(event.message.id)
+              messagingStore.setMessageStatus(messageId, 'read')
+              void messagingStore.markAsRead(messageId)
+            } else if (messagingStore.currentUserId === receiverId) {
+              void messagingStore.markConversationAsDelivered(senderId)
             } else {
-              messagingStore.fetchUnreadCount()
+              void messagingStore.fetchUnreadCount()
             }
           }
         })
+        .listen('.message-delivered', (event: any) => {
+          messagingStore.setMessageStatus(Number(event.message_id), 'delivered')
+        })
         .listen('.message-read', (event: any) => {
-          messagingStore.setMessageStatus(event.message_id, 'read')
+          messagingStore.setMessageStatus(Number(event.message_id), 'read')
         })
         .listen('.typing', (event: any) => {
-          messagingStore.setTypingIndicator(event.sender_id, event.is_typing)
+          messagingStore.setTypingIndicator(Number(event.sender_id), Boolean(event.is_typing))
         })
         .listen('.user-status', (event: any) => {
+          const eventUserId = Number(event.user_id)
+
           if (event.is_online) {
-            if (!messagingStore.onlineUsers.includes(event.user_id)) {
-              messagingStore.onlineUsers.push(event.user_id)
+            if (!messagingStore.onlineUsers.includes(eventUserId)) {
+              messagingStore.onlineUsers.push(eventUserId)
             }
           } else {
-            const index = messagingStore.onlineUsers.indexOf(event.user_id)
+            const index = messagingStore.onlineUsers.indexOf(eventUserId)
             if (index > -1) {
               messagingStore.onlineUsers.splice(index, 1)
             }

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import laravelAuthApi from '@/api/laravel/auth'
 import { initializeTheme } from '@/composables/useTheme'
+import { setAppLocale } from '@/localization'
 import { logApiError } from '@/api/http'
 import {
   clearStoredAuth,
@@ -11,6 +12,7 @@ import {
   persistAuthSession,
   persistStoredUser
 } from '@/utils/authStorage'
+import { normalizeLocale } from '@/utils/localeStorage'
 
 export interface UserRole {
   id: number
@@ -34,7 +36,6 @@ export interface User {
   avatar_url?: string | null
   lang: string
   dark_mode?: boolean | null
-  messenger_color?: string | null
   created_at: string
   updated_at: string
   roles: string[]
@@ -117,6 +118,7 @@ function normalizeUser(apiResponse: any): User | null {
   
   return {
     ...user,
+    lang: normalizeLocale(user.lang),
     employee_id: employeeId,
     roles,
     permissions,
@@ -136,7 +138,11 @@ function loadStoredUser(): User | null {
   if (!rawUser) return null
 
   try {
-    return JSON.parse(rawUser) as User
+    const parsedUser = JSON.parse(rawUser) as User
+    return {
+      ...parsedUser,
+      lang: normalizeLocale(parsedUser?.lang),
+    }
   } catch {
     return null
   }
@@ -157,6 +163,10 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!laravelToken.value)
   const userRole = computed(() => user.value?.role || null)
 
+  if (user.value?.lang) {
+    setAppLocale(user.value.lang)
+  }
+
   /**
    * Initialize auth state from localStorage on app startup
    */
@@ -176,6 +186,7 @@ export const useAuthStore = defineStore('auth', () => {
           const normalizedUser = normalizeUser(response)
           user.value = normalizedUser
           initializeTheme(resolveThemePreference(normalizedUser?.dark_mode))
+          setAppLocale(normalizedUser?.lang)
           
           if (normalizedUser) {
             persistStoredUser(normalizedUser)
@@ -210,6 +221,7 @@ export const useAuthStore = defineStore('auth', () => {
       laravelToken.value = response.token
       user.value = normalizedUser
       initializeTheme(resolveThemePreference(normalizedUser?.dark_mode))
+      setAppLocale(normalizedUser?.lang)
       
       if (normalizedUser) {
         persistAuthSession({ token: response.token, user: normalizedUser, rememberMe })
@@ -254,6 +266,7 @@ export const useAuthStore = defineStore('auth', () => {
       laravelToken.value = response.token
       user.value = normalizedUser
       initializeTheme(resolveThemePreference(normalizedUser?.dark_mode))
+      setAppLocale(normalizedUser?.lang)
       
       persistAuthSession({
         token: response.token,
@@ -359,6 +372,7 @@ export const useAuthStore = defineStore('auth', () => {
         const normalizedUser = normalizeUser(response)
         user.value = normalizedUser
         initializeTheme(resolveThemePreference(normalizedUser?.dark_mode))
+        setAppLocale(normalizedUser?.lang)
         persistStoredUser(normalizedUser!)
         return normalizedUser
       }
@@ -391,6 +405,7 @@ export const useAuthStore = defineStore('auth', () => {
     const response = await laravelAuthApi.updateProfile(payload) as MeResponse
     const normalizedUser = normalizeUser(response)
     user.value = normalizedUser
+    setAppLocale(normalizedUser?.lang ?? payload.lang)
     if (normalizedUser) {
       persistStoredUser(normalizedUser)
     }
@@ -409,6 +424,7 @@ export const useAuthStore = defineStore('auth', () => {
     const response = await laravelAuthApi.updateAvatar(file) as MeResponse
     const normalizedUser = normalizeUser(response)
     user.value = normalizedUser
+    setAppLocale(normalizedUser?.lang)
     if (normalizedUser) {
       persistStoredUser(normalizedUser)
     }
@@ -418,11 +434,11 @@ export const useAuthStore = defineStore('auth', () => {
   async function updatePreferences(payload: {
     dark_mode?: boolean
     lang?: string
-    messenger_color?: string
   }) {
     const response = await laravelAuthApi.updatePreferences(payload) as MeResponse
     const normalizedUser = normalizeUser(response)
     user.value = normalizedUser
+    setAppLocale(normalizedUser?.lang ?? payload.lang)
     if (normalizedUser) {
       persistStoredUser(normalizedUser)
       if (typeof payload.dark_mode === 'boolean') {

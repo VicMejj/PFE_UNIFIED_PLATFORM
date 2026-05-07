@@ -306,7 +306,7 @@ class EnhancedRAGStore:
         return score
 
     def query(
-        self, query_text: str, top_k: int = 3, min_score: float = 0.45
+        self, query_text: str, top_k: int = 5, min_score: float = 0.2
     ) -> List[dict]:
         """Enhanced query with multi-method retrieval and re-ranking."""
         if not query_text:

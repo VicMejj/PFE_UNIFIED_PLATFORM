@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Misc\Asset;
 use App\Models\Misc\Language;
 use App\Models\Setting;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 
 class CoreDataSeeder extends Seeder
@@ -14,8 +15,9 @@ class CoreDataSeeder extends Seeder
         $languages = [
             ['code' => 'en', 'name' => 'English', 'is_active' => true],
             ['code' => 'fr', 'name' => 'French', 'is_active' => true],
-            ['code' => 'es', 'name' => 'Spanish', 'is_active' => false],
         ];
+
+        Language::query()->whereNotIn('code', ['en', 'fr'])->delete();
 
         foreach ($languages as $language) {
             Language::updateOrCreate(
@@ -23,6 +25,10 @@ class CoreDataSeeder extends Seeder
                 $language
             );
         }
+
+        User::query()
+            ->whereNotIn('lang', ['en', 'fr'])
+            ->update(['lang' => 'en']);
 
         $settings = [
             ['key' => 'company.name', 'value' => 'Unified Platform', 'type' => 'string', 'category' => 'company'],

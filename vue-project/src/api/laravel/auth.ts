@@ -108,7 +108,7 @@ export default {
     return unwrapResponse(response)
   },
 
-  async updatePreferences(payload: { dark_mode?: boolean; lang?: string; messenger_color?: string }) {
+  async updatePreferences(payload: { dark_mode?: boolean; lang?: string }) {
     const response = await laravelApi.patch('/core/auth/preferences', payload)
     return unwrapResponse(response)
   }

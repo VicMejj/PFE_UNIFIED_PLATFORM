@@ -279,7 +279,7 @@ class AuthController extends ApiController
         $data = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|email|unique:users,email,'.$user->id,
-            'lang' => 'sometimes|nullable|string|max:10',
+            'lang' => 'sometimes|in:en,fr',
         ]);
 
         $user->fill($data);
@@ -361,8 +361,7 @@ class AuthController extends ApiController
 
         $data = $request->validate([
             'dark_mode' => 'sometimes|boolean',
-            'lang' => 'sometimes|nullable|string|max:10',
-            'messenger_color' => 'sometimes|nullable|string|max:20',
+            'lang' => 'sometimes|in:en,fr',
         ]);
 
         $user->fill($data);

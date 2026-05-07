@@ -123,7 +123,6 @@ async function handleAvatarChange(event: Event) {
             >
               <option value="en">English</option>
               <option value="fr">French</option>
-              <option value="ar">Arabic</option>
             </select>
           </div>
 

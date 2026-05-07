@@ -7,6 +7,7 @@ import Badge from '@/components/ui/Badge.vue'
 import { djangoAiApi } from '@/api/django/ai'
 import { useAuthStore } from '@/stores/auth'
 import { v4 as uuidv4 } from 'uuid'
+import { looksPlatformRelatedMessage, parseChatMessage } from '@/utils/chatMessageFormatting'
 
 interface ChatMessage {
   id: string
@@ -29,20 +30,24 @@ const isInitialized = ref(false)
 const errorMessage = ref('')
 const copiedId = ref<string | null>(null)
 const abortController = ref<AbortController | null>(null)
+const pendingStatusLines = ref<string[]>([])
 const historyKey = `chatbot_messages_${authStore.user?.id ?? 'guest'}`
 
 const suggestions = [
-  'Help me with employee data',
-  'Predict turnover risks',
-  'Find optimal leave dates',
-  'Assess a loan application',
-  'Show recent analytics',
-  'Generate a report'
+  'How many employees are in the platform?',
+  'What is 15% of 230?',
+  'What leave balance do I have?',
+  'Give me some tips for staying productive',
+  'Explain the leave policy',
+  'What can you do?'
 ]
 
 const canUseChatbot = computed(() => {
   const roles = authStore.user?.roles || []
-  return roles.some((r: any) => ['admin', 'manager', 'rh', 'hr'].includes(r.name?.toLowerCase()))
+  return roles.some((r: any) => {
+    const roleName = typeof r === 'string' ? r : r?.name
+    return ['admin', 'manager', 'rh', 'hr'].includes(String(roleName || '').toLowerCase())
+  })
 })
 
 const isNetworkFailure = (error: any) =>
@@ -80,7 +85,11 @@ const initializeChat = async () => {
 
   try {
     const history: any = await djangoAiApi.getChatHistory(sessionId.value)
-    const conversation = Array.isArray(history?.data) ? history.data[0] : history?.data?.[0]
+    const conversation = Array.isArray(history)
+      ? history[0]
+      : Array.isArray(history?.data)
+        ? history.data[0]
+        : history?.data?.[0]
     const items = Array.isArray(conversation?.messages) ? conversation.messages : []
     messages.value = items.map((item: any) => ({
       id: String(item.id ?? uuidv4()),
@@ -100,7 +109,7 @@ const initializeChat = async () => {
     messages.value.push({
       id: uuidv4(),
       sender: 'BOT',
-      text: `Welcome to Mejj AI Assistant! 👋\n\nI'm here to help you with:\n• Employee insights & turnover predictions\n• Optimal leave date recommendations\n• Loan risk assessments\n• HR analytics & reporting\n• Document processing & classification\n• Fraud detection\n\nHow can I assist you today?`,
+      text: `Welcome to Mejj AI Assistant.\n\nI can help with:\n- Platform data and HR workflows\n- Leave, payroll, insurance, and policies\n- Math calculations and conversions\n- General knowledge and daily life questions\n- Coding and tech questions\n- Really anything you'd like to know\n\nWhat's on your mind?`,
       timestamp: new Date(),
       intent: 'greeting',
       entities: []
@@ -126,6 +135,9 @@ const sendMessage = async () => {
 
   isLoading.value = true
   errorMessage.value = ''
+  pendingStatusLines.value = looksPlatformRelatedMessage(userMessage)
+    ? ['[thinking]', '[checking platform data]']
+    : ['[thinking]']
 
   try {
     abortController.value = new AbortController()
@@ -178,6 +190,7 @@ const sendMessage = async () => {
     }
   } finally {
     isLoading.value = false
+    pendingStatusLines.value = []
   }
 }
 
@@ -200,6 +213,7 @@ const stopGeneration = () => {
   if (abortController.value) {
     abortController.value.abort()
     isLoading.value = false
+    pendingStatusLines.value = []
   }
 }
 
@@ -210,12 +224,7 @@ const clearHistory = () => {
   }
 }
 
-const formatMessage = (text: string) => {
-  // Convert markdown-like syntax to readable text
-  return text
-    .replace(/\*\*(.*?)\*\*/g, (_, p1) => `${p1}`)
-    .replace(/\n/g, '<br>')
-}
+const getMessageSegments = (text: string) => parseChatMessage(text)
 
 onMounted(initializeChat)
 </script>
@@ -229,7 +238,7 @@ onMounted(initializeChat)
           <MessageCircle class="w-6 h-6 text-blue-600" />
           <div>
             <h2 class="text-2xl font-bold">Mejj AI Assistant</h2>
-            <p class="text-sm text-gray-600 dark:text-gray-400">Smart HR & Business Intelligence</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Smart AI Assistant — HR, General Knowledge & More</p>
           </div>
         </div>
         <div class="flex gap-2">
@@ -295,7 +304,19 @@ onMounted(initializeChat)
                     : 'bg-slate-100 dark:bg-slate-800'
                 ]"
               >
-                <p class="text-sm whitespace-pre-wrap break-words" v-html="formatMessage(msg.text)" />
+                <div class="space-y-1">
+                  <template v-for="segment in getMessageSegments(msg.text)" :key="segment.key">
+                    <div
+                      v-if="segment.kind === 'status'"
+                      class="inline-flex w-fit rounded-full border border-slate-300 bg-slate-200 px-2 py-1 text-[11px] leading-none text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+                    >
+                      {{ segment.text }}
+                    </div>
+                    <h4 v-else-if="segment.kind === 'heading'" class="text-sm font-bold mt-2 mb-0.5">{{ segment.text }}</h4>
+                    <div v-else-if="segment.kind === 'bullet'" class="text-sm pl-1">• {{ segment.text }}</div>
+                    <p v-else class="text-sm whitespace-pre-wrap break-words" :class="{ 'font-semibold': segment.bold }">{{ segment.text }}</p>
+                  </template>
+                </div>
                 
                 <!-- CONTEXT INFO -->
                 <div v-if="msg.entities && msg.entities.length > 0" class="mt-3 pt-3 border-t border-slate-300 dark:border-slate-700">
@@ -326,7 +347,16 @@ onMounted(initializeChat)
       <!-- TYPING INDICATOR -->
       <div v-if="isLoading" class="flex justify-start">
         <div class="bg-slate-100 dark:bg-slate-800 rounded-xl rounded-tl-none px-4 py-3">
-          <div class="flex gap-2">
+          <div class="flex flex-col items-start gap-2">
+            <div
+              v-for="statusLine in pendingStatusLines.length ? pendingStatusLines : ['[thinking]']"
+              :key="statusLine"
+              class="inline-flex rounded-full border border-slate-300 bg-slate-200 px-2 py-1 text-[11px] leading-none text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+            >
+              {{ statusLine }}
+            </div>
+          </div>
+          <div class="mt-2 flex gap-2">
             <div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0s" />
             <div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.2s" />
             <div class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.4s" />
@@ -357,7 +387,7 @@ onMounted(initializeChat)
         <Input
           v-model="inputMessage"
           :disabled="isLoading"
-          placeholder="Ask me anything about HR, employees, or analytics..."
+          placeholder="Ask me anything..."
           class="flex-1"
           @keydown.escape="stopGeneration"
         />

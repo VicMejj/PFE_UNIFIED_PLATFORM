@@ -103,7 +103,7 @@ function getInitials(name: string): string {
 function getStatusIcon(status: string) {
   if (status === 'sent') return Check
   if (status === 'read') return CheckCheck
-  if (status === 'delivered') return Check
+  if (status === 'delivered') return CheckCheck
   return Check
 }
 

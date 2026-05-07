@@ -23,7 +23,7 @@ class User extends Authenticatable implements JWTSubject
         'trial_plan', 'is_login_enable', 'storage_limit', 'last_login',
         'is_active', 'referral_code', 'used_referral_code', 'commission_amount',
         'active_status', 'is_disable', 'google2fa_secret', 'google2fa_enable',
-        'dark_mode', 'messenger_color', 'created_by',
+        'dark_mode', 'created_by',
     ];
 
     protected $hidden = ['password', 'remember_token', 'google2fa_secret'];

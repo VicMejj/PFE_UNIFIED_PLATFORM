@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Messaging;
 
+use App\Events\Messaging\MessageDeliveredEvent;
 use App\Events\Messaging\MessageReadEvent;
 use App\Events\Messaging\TypingEvent;
 use App\Events\Messaging\UserStatusEvent;
@@ -98,7 +99,11 @@ class MessageController extends Controller
             $query->where('created_at', '>', $since);
         }
         
-        $messages = $query->get()
+        $messages = $query->get();
+
+        $this->markMessagesAsDelivered($messages, $userId, $currentUserId);
+
+        $messages = $messages
             ->map(function ($msg) {
                 return [
                     'id' => $msg->id,
@@ -135,19 +140,24 @@ class MessageController extends Controller
             return response()->json(['error' => 'Invalid conversation.'], 403);
         }
 
-        $lastMessage = Message::conversation($currentUserId, $userId)
-            ->orderByDesc('created_at')
-            ->first();
+        $afterId = max(0, (int) request()->query('after_id', 0));
 
         $messages = Message::conversation($currentUserId, $userId)
-            ->when($lastMessage, fn($q) => $q->where('id', '>', $lastMessage->id))
+            ->when($afterId > 0, fn($q) => $q->where('id', '>', $afterId))
             ->orderBy('created_at', 'asc')
-            ->get()
+            ->get();
+
+        $this->markMessagesAsDelivered($messages, $userId, $currentUserId);
+
+        $messages = $messages
             ->map(fn($msg) => [
                 'id' => $msg->id,
                 'sender_id' => $msg->sender_id,
                 'receiver_id' => $msg->receiver_id,
                 'content' => $msg->content,
+                'attachment_path' => $msg->attachment_path,
+                'attachment_type' => $msg->attachment_type,
+                'attachment_name' => $msg->attachment_name,
                 'status' => $msg->status,
                 'created_at' => $msg->created_at->toIso8601String(),
                 'is_mine' => $msg->sender_id === $currentUserId,
@@ -223,6 +233,7 @@ class MessageController extends Controller
                     'content' => $lastMessage->content,
                     'created_at' => $lastMessage->created_at->toIso8601String(),
                     'is_mine' => $lastMessage->sender_id === $userId,
+                    'status' => $lastMessage->status,
                 ] : null,
                 'unread_count' => $unread,
                 'is_online' => $this->redisService->isUserOnline($conv->other_user_id),
@@ -314,6 +325,26 @@ class MessageController extends Controller
         }
 
         $this->syncUnreadCount(Auth::id());
+
+        return response()->json(['success' => true]);
+    }
+
+    public function markConversationAsDelivered(int $userId): JsonResponse
+    {
+        $currentUser = Auth::user();
+        $otherUser = User::findOrFail($userId);
+
+        if (! $this->canAccessMessaging($currentUser) || ! $this->isValidConversation($currentUser, $otherUser)) {
+            return response()->json(['error' => 'Invalid conversation.'], 403);
+        }
+
+        $messages = Message::query()
+            ->where('sender_id', $userId)
+            ->where('receiver_id', Auth::id())
+            ->where('status', 'sent')
+            ->get();
+
+        $this->markMessagesAsDelivered($messages, $userId, Auth::id());
 
         return response()->json(['success' => true]);
     }
@@ -442,6 +473,22 @@ class MessageController extends Controller
             $userId,
             Message::unread($userId)->count()
         );
+    }
+
+    private function markMessagesAsDelivered($messages, int $senderId, int $receiverId): void
+    {
+        foreach ($messages as $message) {
+            if (
+                (int) $message->sender_id !== $senderId
+                || (int) $message->receiver_id !== $receiverId
+                || $message->status !== 'sent'
+            ) {
+                continue;
+            }
+
+            $message->markAsDelivered();
+            broadcast(new MessageDeliveredEvent($message->id, $receiverId, $senderId));
+        }
     }
 
     /**

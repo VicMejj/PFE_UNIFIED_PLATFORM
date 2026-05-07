@@ -4,6 +4,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import VueApexCharts from 'vue3-apexcharts'
 import { laravelApi } from '@/api/http'
+import { initializeLocalization, startLocalizationObserver } from '@/localization'
 import { initializeTheme } from '@/composables/useTheme'
 import LaravelEcho from 'laravel-echo'
 import Pusher from 'pusher-js'
@@ -12,6 +13,7 @@ import App from './App.vue'
 import router from './router'
 
 initializeTheme()
+initializeLocalization()
 
 declare global {
   interface Window {
@@ -76,3 +78,4 @@ if (reverbKey) {
 }
 
 app.mount('#app')
+startLocalizationObserver()
