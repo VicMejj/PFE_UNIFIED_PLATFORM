@@ -120,7 +120,8 @@ class EmployeeScoreController extends ApiController
             SUM(CASE WHEN score_tier = 'excellent' THEN 1 ELSE 0 END) as excellent_count,
             SUM(CASE WHEN score_tier = 'good' THEN 1 ELSE 0 END) as good_count,
             SUM(CASE WHEN score_tier = 'medium' THEN 1 ELSE 0 END) as medium_count,
-            SUM(CASE WHEN score_tier = 'risk' THEN 1 ELSE 0 END) as risk_count
+            SUM(CASE WHEN score_tier = 'risk' THEN 1 ELSE 0 END) as risk_count,
+            SUM(CASE WHEN score_tier = 'not_started' THEN 1 ELSE 0 END) as not_started_count
         ")->first();
 
         $atRiskEmployees = EmployeeScore::atRisk()
@@ -141,6 +142,7 @@ class EmployeeScoreController extends ApiController
                 'good_count' => $scores->good_count ?? 0,
                 'medium_count' => $scores->medium_count ?? 0,
                 'risk_count' => $scores->risk_count ?? 0,
+                'not_started_count' => $scores->not_started_count ?? 0,
             ],
             'at_risk_employees' => $atRiskEmployees,
             'excellent_employees' => $excellentEmployees,

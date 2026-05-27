@@ -6,7 +6,9 @@ use App\Http\Controllers\Api\ApiController;
 use App\Mail\ContractAssignmentMail;
 use App\Models\Contract\Contract;
 use App\Models\Contract\ContractAuditLog;
+use App\Models\Employee\Employee;
 use App\Models\Notification;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -34,10 +36,12 @@ class ContractController extends ApiController
      */
     public function index(Request $request)
     {
-        $this->expireDueContracts();
-        $query = Contract::query();
+        $user = auth()->user();
 
-        if ($request->has('employee_id')) {
+        $this->expireDueContracts();
+        $query = $this->accessibleContractsQuery($user);
+
+        if ($this->canManageAllContracts($user) && $request->has('employee_id')) {
             $query->where('employee_id', $request->employee_id);
         }
 
@@ -54,6 +58,10 @@ class ContractController extends ApiController
      */
     public function store(Request $request)
     {
+        if ($response = $this->authorizeContractManagement()) {
+            return $response;
+        }
+
         $validator = Validator::make($request->all(), [
             'employee_id' => 'required|exists:employees,id',
             'contract_type_id' => 'nullable|exists:contract_types,id',
@@ -89,7 +97,11 @@ class ContractController extends ApiController
     public function show($id)
     {
         $this->expireDueContracts();
-        $contract = Contract::with('employee.department', 'employee.designation', 'contractType', 'attachments', 'comments', 'notes')->findOrFail($id);
+        $contract = $this->findAccessibleContractOrFail(
+            $id,
+            ['employee.department', 'employee.designation', 'contractType', 'attachments', 'comments', 'notes']
+        );
+
         return $this->successResponse($contract, 'Contract retrieved successfully');
     }
 
@@ -98,6 +110,10 @@ class ContractController extends ApiController
      */
     public function update(Request $request, $id)
     {
+        if ($response = $this->authorizeContractManagement()) {
+            return $response;
+        }
+
         $validator = Validator::make($request->all(), [
             'contract_name' => 'sometimes|string|max:255',
             'start_date' => 'sometimes|date',
@@ -123,6 +139,10 @@ class ContractController extends ApiController
      */
     public function destroy($id)
     {
+        if ($response = $this->authorizeContractManagement()) {
+            return $response;
+        }
+
         $contract = Contract::findOrFail($id);
         $contract->delete();
 
@@ -131,6 +151,10 @@ class ContractController extends ApiController
 
     public function assign(Request $request, $id)
     {
+        if ($response = $this->authorizeContractManagement()) {
+            return $response;
+        }
+
         $this->expireDueContracts();
         $contract = Contract::findOrFail($id);
 
@@ -216,6 +240,10 @@ class ContractController extends ApiController
             $request->input('verification_code')
         );
 
+        if (! $this->authenticatedEmployeeOwnsContract($contract)) {
+            return $this->notFoundResponse('Contract');
+        }
+
         if (in_array($contract->status, ['signed', 'rejected'], true)) {
             return $this->errorResponse('This contract can no longer be reviewed in its current state.', 422);
         }
@@ -251,6 +279,10 @@ class ContractController extends ApiController
             $request->input('token'),
             $request->input('verification_code')
         );
+
+        if (! $this->authenticatedEmployeeOwnsContract($contract)) {
+            return $this->notFoundResponse('Contract');
+        }
 
         if (in_array($contract->status, ['signed', 'rejected'], true)) {
             return $this->errorResponse('This contract can no longer be signed in its current state.', 422);
@@ -303,9 +335,19 @@ class ContractController extends ApiController
         }
 
         $this->expireDueContracts();
-        $contract = $request->filled('token') || $request->filled('verification_code')
-            ? $this->resolveVerificationContract($id, $request->input('token'), $request->input('verification_code'))
-            : Contract::findOrFail($id);
+        if ($request->filled('token') || $request->filled('verification_code')) {
+            $contract = $this->resolveVerificationContract($id, $request->input('token'), $request->input('verification_code'));
+
+            if (! $this->authenticatedEmployeeOwnsContract($contract)) {
+                return $this->notFoundResponse('Contract');
+            }
+        } else {
+            if ($response = $this->authorizeContractManagement()) {
+                return $response;
+            }
+
+            $contract = Contract::findOrFail($id);
+        }
 
         if ($contract->status === 'signed') {
             return $this->errorResponse('A signed contract cannot be rejected.', 422);
@@ -346,6 +388,10 @@ class ContractController extends ApiController
 
     public function auditLog($id)
     {
+        if ($response = $this->authorizeContractManagement()) {
+            return $response;
+        }
+
         $this->expireDueContracts();
         $contract = Contract::findOrFail($id);
         $logs = $contract->auditLogs()->orderBy('created_at', 'desc')->get();
@@ -398,6 +444,73 @@ class ContractController extends ApiController
         return $query->firstOrFail();
     }
 
+    protected function canManageAllContracts($user = null): bool
+    {
+        return (bool) ($user && method_exists($user, 'hasAnyRole') && $user->hasAnyRole([
+            'admin',
+            'rh_manager',
+            'rh',
+            'hr',
+            'manager',
+        ]));
+    }
+
+    protected function resolveAuthenticatedEmployee($user = null): ?Employee
+    {
+        $user ??= auth()->user();
+
+        if (! $user) {
+            return null;
+        }
+
+        return Employee::where('user_id', $user->getAuthIdentifier())->first();
+    }
+
+    protected function accessibleContractsQuery($user = null): Builder
+    {
+        $user ??= auth()->user();
+        $query = Contract::query();
+
+        if ($this->canManageAllContracts($user)) {
+            return $query;
+        }
+
+        $employee = $this->resolveAuthenticatedEmployee($user);
+
+        if (! $employee) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query
+            ->where('employee_id', $employee->id)
+            ->where('status', 'signed');
+    }
+
+    protected function findAccessibleContractOrFail($id, array $with = []): Contract
+    {
+        return $this->accessibleContractsQuery()
+            ->with($with)
+            ->findOrFail($id);
+    }
+
+    protected function authenticatedEmployeeOwnsContract(Contract $contract, $user = null): bool
+    {
+        $employee = $this->resolveAuthenticatedEmployee($user);
+
+        return $employee && (int) $contract->employee_id === (int) $employee->id;
+    }
+
+    protected function authorizeContractManagement($user = null)
+    {
+        $user ??= auth()->user();
+
+        if ($this->canManageAllContracts($user)) {
+            return null;
+        }
+
+        return $this->forbiddenResponse('Only managers, HR, or administrators can manage contracts.');
+    }
+
     protected function isExpired(Contract $contract): bool
     {
         if ($contract->status === 'expired') {
@@ -431,33 +544,10 @@ class ContractController extends ApiController
      */
     public function download(Request $request, $id)
     {
-        $contract = Contract::with(['employee.department', 'employee.designation', 'contractType'])->findOrFail($id);
-
-        $canAccess = false;
-        $currentUser = auth()->user();
-
-        if ($currentUser) {
-            $currentUserId = $currentUser->id;
-            $isEmployeeOwner = $contract->employee_id === $currentUserId || optional($contract->employee)->user_id === $currentUserId;
-            $canAccess = $isEmployeeOwner || $currentUser->hasRole(['admin', 'rh', 'rh_manager', 'manager']);
-        }
-
-        if (! $canAccess && ($request->filled('token') || $request->filled('verification_code'))) {
-            try {
-                $this->resolveVerificationContract(
-                    (int) $id,
-                    $request->input('token'),
-                    $request->input('verification_code')
-                );
-                $canAccess = true;
-            } catch (\Throwable $exception) {
-                $canAccess = false;
-            }
-        }
-
-        if (! $canAccess) {
-            return $this->errorResponse('Unauthorized', 403);
-        }
+        $contract = $this->findAccessibleContractOrFail(
+            $id,
+            ['employee.department', 'employee.designation', 'contractType']
+        );
 
         // Only allow download of signed contracts
         if ($contract->status !== 'signed') {

@@ -160,33 +160,10 @@ export const getClaims = async (status = '') => {
 }
 
 export const getMyClaims = async (status = '') => {
-  try {
-    // Try the regular endpoint first
-    const response = await laravelApi.get('/insurance/claims/my', {
-      params: status ? { status } : undefined
-    })
-    console.log('Claims response:', response.status, response.data)
-    if (response.status >= 400) {
-      throw new Error(response.data?.message || 'Failed to load claims')
-    }
-    return unwrapItems(unwrapResponse(response))
-  } catch (error: any) {
-    console.log('Claims error:', error.response?.status, error.response?.data)
-    // If auth fails, try the test endpoint
-    if (error.response?.status === 401 || error.response?.status === 500 || error.response?.status === 404) {
-      try {
-        const testResponse = await laravelApi.post('/insurance/claims/my-test', {
-          employee_id: 8
-        })
-        console.log('Fallback response:', testResponse.status, testResponse.data)
-        return unwrapItems(unwrapResponse(testResponse))
-      } catch (fallbackError: any) {
-        console.log('Fallback error:', fallbackError.response?.data)
-        throw fallbackError
-      }
-    }
-    throw error
-  }
+  const response = await laravelApi.get('/insurance/claims/my', {
+    params: status ? { status } : undefined
+  })
+  return unwrapItems(unwrapResponse(response))
 }
 
 export const getClaim = async (id: number) => {

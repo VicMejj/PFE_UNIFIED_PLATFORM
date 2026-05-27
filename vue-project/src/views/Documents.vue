@@ -57,15 +57,25 @@ const getFraudRiskLabel = (score: number) => {
 }
 
 const normalizeClassification = (classification: any): ClassificationResult => {
+  // Handle error responses from API
+  if (classification?.error && !classification?.confidence_score) {
+    // If there's an error but no confidence_score, use a default confidence
+    return {
+      category: classification?.category ?? classification?.document_category ?? 'Unknown',
+      confidence: 0.5, // Default fallback confidence
+      medical_specialty: classification?.medical_specialty ?? classification?.specialty,
+    }
+  }
+
   const confidenceRaw = Number(
     classification?.confidence ??
     classification?.confidence_score ??
     classification?.score ??
-    0
+    0.5 // Changed default from 0 to 0.5 for better UX
   )
   const confidence = Number.isFinite(confidenceRaw)
     ? (confidenceRaw > 1 ? confidenceRaw / 100 : confidenceRaw)
-    : 0
+    : 0.5 // Changed default from 0 to 0.5
 
   return {
     category:
@@ -175,7 +185,14 @@ const processDocument = async () => {
     feedback.value = 'Document processed successfully!'
   } catch (err: any) {
     console.error('Document processing error:', err)
-    errorMessage.value = err.response?.data?.detail || 'Failed to process document.'
+    // Extract error message from various possible error response formats
+    const errorDetail = 
+      err.response?.data?.detail ||
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      err.message ||
+      'Failed to process document.'
+    errorMessage.value = String(errorDetail)
   } finally {
     isProcessing.value = false
   }

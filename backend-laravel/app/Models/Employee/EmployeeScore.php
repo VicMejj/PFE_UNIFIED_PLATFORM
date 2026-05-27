@@ -36,6 +36,7 @@ class EmployeeScore extends Model
     public const TIER_GOOD = 'good';
     public const TIER_MEDIUM = 'medium';
     public const TIER_RISK = 'risk';
+    public const TIER_NOT_STARTED = 'not_started';
 
     public function employee()
     {

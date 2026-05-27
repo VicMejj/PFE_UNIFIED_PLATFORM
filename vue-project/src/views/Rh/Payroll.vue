@@ -77,7 +77,7 @@ function normalizePayrollItem(item: any) {
     period: formatPeriod(item),
     net_payable_value: netPayable,
     net_payable: typeof netPayable === 'number' && Number.isFinite(netPayable)
-      ? `$${netPayable.toLocaleString()}`
+      ? `TND ${netPayable.toLocaleString()}`
       : 'Pending',
     status: missingFields.length
       ? 'incomplete'
@@ -131,7 +131,7 @@ const payrollStats = computed(() => {
   return [
     { label: 'Total payslips', value: items.value.length, description: 'Payroll records available.', icon: Wallet, color: 'bg-sky-500' },
     { label: 'Awaiting send', value: items.value.filter(i => !['sent', 'paid'].includes(String(i.status).toLowerCase())).length, description: 'Need action.', icon: SendHorizonal, color: 'bg-amber-500' },
-    { label: 'Payroll volume', value: `$${totalAmount.toLocaleString()}`, description: 'Total visible net pay.', icon: CircleDollarSign, color: 'bg-emerald-500' }
+    { label: 'Payroll volume', value: `TND ${totalAmount.toLocaleString()}`, description: 'Total visible net pay.', icon: CircleDollarSign, color: 'bg-emerald-500' }
   ]
 })
 

@@ -136,7 +136,7 @@ const notifConfig = (type: string) => {
         </button>
 
         <Transition name="slide-fade">
-          <div v-if="isNotificationsOpen" class="absolute right-0 mt-3 w-[380px] glass-card premium-shadow rounded-[2rem] overflow-hidden animate-in">
+          <div v-if="isNotificationsOpen" class="absolute right-0 mt-3 w-[380px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 premium-shadow rounded-[2rem] overflow-hidden animate-in">
             <div class="p-6 border-b border-white/10 dark:border-slate-800/50 flex items-center justify-between">
               <div>
                 <h3 class="font-black text-slate-900 dark:text-white">Signals</h3>
@@ -210,7 +210,7 @@ const notifConfig = (type: string) => {
         </button>
 
         <Transition name="slide-fade">
-          <div v-if="isDropdownOpen" class="absolute right-0 mt-3 w-64 glass-card premium-shadow rounded-[2rem] overflow-hidden animate-in p-2">
+          <div v-if="isDropdownOpen" class="absolute right-0 mt-3 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 premium-shadow rounded-[2rem] overflow-hidden animate-in p-2">
             <div class="p-4 border-b border-white/5 dark:border-slate-800/50 mb-1">
               <div class="text-[10px] font-black uppercase tracking-[2px] text-slate-400">Account Control</div>
             </div>

@@ -1,18 +1,18 @@
 import { useMessagingStore } from '@/stores/messaging'
+import { canInitializeEcho, ensureEcho } from '@/lib/echo'
 
 declare global {
   interface Window {
-    Echo: any
+    Echo?: any
   }
 }
 
 export function useRealTimeMessages() {
   const messagingStore = useMessagingStore()
-  const isRealtimeConfigured = typeof window !== 'undefined' && !!window.Echo
+  const isRealtimeConfigured = canInitializeEcho()
 
   function getEcho() {
-    if (typeof window === 'undefined') return null
-    return window.Echo ?? null
+    return ensureEcho()
   }
 
   function subscribeToMessages(userId: number) {

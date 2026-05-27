@@ -37,12 +37,16 @@ class ApiController extends Controller
             $payload['data'] = $data;
         }
 
-        // Add authentication token info if authenticated
-        if (auth()->check()) {
-            $payload['user'] = [
-                'id' => auth()->id(),
-                'email' => auth()->user()->email,
-            ];
+        // Add authentication token info when the current auth context can be resolved safely.
+        try {
+            if (auth()->check() && ($authUser = auth()->user())) {
+                $payload['user'] = [
+                    'id' => $authUser->getAuthIdentifier(),
+                    'email' => $authUser->email,
+                ];
+            }
+        } catch (\Throwable $exception) {
+            // Avoid turning an otherwise successful response into a 500 because of auth state drift.
         }
 
         $response_headers = array_merge(

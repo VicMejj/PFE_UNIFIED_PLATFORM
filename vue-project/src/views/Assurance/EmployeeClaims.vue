@@ -315,8 +315,8 @@ onMounted(initAndLoadData)
                   </div>
                   <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
                     <span>Filed: {{ new Date(claim.claim_date || claim.created_at).toLocaleDateString() }}</span>
-                    <span class="font-medium text-slate-700 dark:text-slate-300">${{ Number(claim.claimed_amount || 0).toFixed(2) }}</span>
-                    <span v-if="claim.approved_amount">Approved: ${{ Number(claim.approved_amount).toFixed(2) }}</span>
+                    <span class="font-medium text-slate-700 dark:text-slate-300">TND {{ Number(claim.claimed_amount || 0).toFixed(2) }}</span>
+                    <span v-if="claim.approved_amount">Approved: TND {{ Number(claim.approved_amount).toFixed(2) }}</span>
                   </div>
                   <p v-if="claim.description" class="mt-1 text-sm text-slate-500 dark:text-slate-400 line-clamp-1">
                     {{ claim.description }}
@@ -349,7 +349,7 @@ onMounted(initAndLoadData)
             <option value="">Select enrollment...</option>
             <option v-for="enrollment in enrollments" :key="enrollment.id" :value="String(enrollment.id)">
               {{ enrollment.policy?.name || `Enrollment #${enrollment.id}` }} - 
-              {{ enrollment.employee_contribution ? `$${enrollment.employee_contribution}/mo` : 'Active' }}
+              {{ enrollment.employee_contribution ? `TND ${enrollment.employee_contribution}/mo` : 'Active' }}
             </option>
           </select>
         </div>
@@ -417,7 +417,7 @@ onMounted(initAndLoadData)
           <Badge :variant="getStatusVariant(selectedClaim.status)" class="capitalize text-sm">
             {{ selectedClaim.status?.replace(/_/g, ' ') }}
           </Badge>
-          <span class="text-2xl font-bold text-emerald-600">${{ Number(selectedClaim.claimed_amount || 0).toFixed(2) }}</span>
+          <span class="text-2xl font-bold text-emerald-600">TND {{ Number(selectedClaim.claimed_amount || 0).toFixed(2) }}</span>
         </div>
 
         <div class="grid grid-cols-2 gap-4 text-sm">
@@ -427,7 +427,7 @@ onMounted(initAndLoadData)
           </div>
           <div v-if="selectedClaim.approved_amount">
             <div class="text-slate-500">Approved Amount</div>
-            <div class="font-medium text-emerald-600">${{ Number(selectedClaim.approved_amount).toFixed(2) }}</div>
+            <div class="font-medium text-emerald-600">TND {{ Number(selectedClaim.approved_amount).toFixed(2) }}</div>
           </div>
           <div v-if="selectedClaim.payment_date">
             <div class="text-slate-500">Payment Date</div>

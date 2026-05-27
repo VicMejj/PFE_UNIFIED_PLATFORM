@@ -143,6 +143,30 @@ async function loadMyScore() {
   }
 }
 
+function getScoreTierLabel(score: any) {
+  const tier = String(score?.score_tier || '').trim()
+  if (!tier) return 'No Score'
+  if (tier === 'not_started') return 'Not Started'
+  return tier
+    .split('_')
+    .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function getScoreStandingLabel(score: any) {
+  if (score?.score_tier === 'not_started') return 'Not Started'
+  const tierLabel = getScoreTierLabel(score)
+  return tierLabel === 'No Score' ? tierLabel : `${tierLabel} Tier`
+}
+
+const primaryScoreTip = computed(() => {
+  if (!myScore.value) return ''
+  if (myScore.value.score_tier === 'not_started') {
+    return 'No performance data has been recorded yet. Your score will begin once attendance, appraisals, or manager notes are added.'
+  }
+  return myScore.value.improvement_suggestions?.[0] || ''
+})
+
 async function loadMyAllowances() {
   isLoadingAllowances.value = true
   try {
@@ -392,12 +416,12 @@ onMounted(() => {
           </div>
           <h2 class="text-3xl font-black tracking-tight">Your Performance Score</h2>
           <p class="text-indigo-100 text-lg opacity-90 max-w-xl">
-            Current Standing: <span class="font-bold underline decoration-emerald-400 decoration-2">{{ myScore.score_tier }} Tier</span>.
+            Current Standing: <span class="font-bold underline decoration-emerald-400 decoration-2">{{ getScoreStandingLabel(myScore) }}</span>.
           </p>
-          <div v-if="myScore.improvement_suggestions?.length" class="mt-4 flex flex-wrap gap-2">
-            <div v-for="tip in myScore.improvement_suggestions.slice(0, 1)" :key="tip" class="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 text-sm backdrop-blur-md">
+          <div v-if="primaryScoreTip" class="mt-4 flex flex-wrap gap-2">
+            <div class="flex items-center gap-2 rounded-2xl bg-white/10 px-4 py-2 text-sm backdrop-blur-md">
               <Sparkles class="h-4 w-4 text-emerald-300" />
-              <span>AI Tip: {{ tip }}</span>
+              <span>AI Tip: {{ primaryScoreTip }}</span>
             </div>
           </div>
         </div>
@@ -493,7 +517,7 @@ onMounted(() => {
                       {{ getBenefitStatusInfo(benefit).label }}
                     </Badge>
                     <span class="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                      ${{ Number(benefit.amount || 0).toFixed(2) }}
+                      TND {{ Number(benefit.amount || 0).toFixed(2) }}
                     </span>
                     <span class="text-xs text-slate-400">/ month</span>
                   </div>
@@ -675,7 +699,7 @@ onMounted(() => {
             </div>
             <div class="flex items-center gap-4">
               <div class="text-right">
-                <div class="font-bold text-emerald-600">${{ Number(claim.claimed_amount || 0).toFixed(2) }}</div>
+                <div class="font-bold text-emerald-600">TND {{ Number(claim.claimed_amount || 0).toFixed(2) }}</div>
                 <div class="text-xs text-slate-500">{{ new Date(claim.claim_date || claim.created_at).toLocaleDateString() }}</div>
               </div>
               <Badge :variant="getClaimStatusVariant(claim.status)" class="capitalize">
@@ -697,7 +721,7 @@ onMounted(() => {
           <Badge :variant="getClaimStatusVariant(selectedClaim.status)" class="capitalize text-sm">
             {{ getClaimStatusLabel(selectedClaim.status) }}
           </Badge>
-          <span class="text-2xl font-bold text-emerald-600">${{ Number(selectedClaim.claimed_amount || 0).toFixed(2) }}</span>
+          <span class="text-2xl font-bold text-emerald-600">TND {{ Number(selectedClaim.claimed_amount || 0).toFixed(2) }}</span>
         </div>
 
         <div class="grid grid-cols-2 gap-4 text-sm">
@@ -707,7 +731,7 @@ onMounted(() => {
           </div>
           <div v-if="selectedClaim.approved_amount">
             <div class="text-slate-500">Approved Amount</div>
-            <div class="font-medium text-emerald-600">${{ Number(selectedClaim.approved_amount).toFixed(2) }}</div>
+            <div class="font-medium text-emerald-600">TND {{ Number(selectedClaim.approved_amount).toFixed(2) }}</div>
           </div>
           <div v-if="selectedClaim.payment_date">
             <div class="text-slate-500">Payment Date</div>

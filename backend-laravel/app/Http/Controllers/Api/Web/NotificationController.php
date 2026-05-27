@@ -13,6 +13,11 @@ class NotificationController extends ApiController
     public function index()
     {
         $user = auth()->user();
+
+        if (! $user) {
+            return $this->unauthorizedResponse();
+        }
+
         $notifications = $this->visibleNotificationsQuery($user)
             ->with([
                 'reads' => fn ($query) => $query->where('user_id', $user->id),
@@ -35,6 +40,11 @@ class NotificationController extends ApiController
     public function markRead($id)
     {
         $user = auth()->user();
+
+        if (! $user) {
+            return $this->unauthorizedResponse();
+        }
+
         $notification = $this->visibleNotificationsQuery($user)->findOrFail($id);
 
         NotificationRead::updateOrCreate(
@@ -53,6 +63,11 @@ class NotificationController extends ApiController
     public function markAllRead()
     {
         $user = auth()->user();
+
+        if (! $user) {
+            return $this->unauthorizedResponse();
+        }
+
         $notificationIds = $this->visibleNotificationsQuery($user)->pluck('notifications.id');
 
         if ($notificationIds->isEmpty()) {
@@ -77,6 +92,10 @@ class NotificationController extends ApiController
     public function unreadCount()
     {
         $user = auth()->user();
+
+        if (! $user) {
+            return $this->unauthorizedResponse();
+        }
 
         $count = $this->visibleNotificationsQuery($user)
             ->whereDoesntHave('reads', fn ($query) => $query->where('user_id', $user->id))

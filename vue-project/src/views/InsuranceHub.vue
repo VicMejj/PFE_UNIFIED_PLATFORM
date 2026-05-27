@@ -118,9 +118,9 @@ const downloadSampleDocument = () => {
     <p><strong>Date:</strong> 15/05/2026</p>
     <p><strong>Invoice #:</strong> INV-99283</p>
     <p><strong>Patient:</strong> John Doe</p>
-    <div class="row"><span>Consultation</span><span>$150.00</span></div>
-    <div class="row"><span>Lab Tests</span><span>$50.00</span></div>
-    <div class="total">Total Due: $200.00</div>
+    <div class="row"><span>Consultation</span><span>TND 150.00</span></div>
+    <div class="row"><span>Lab Tests</span><span>TND 50.00</span></div>
+    <div class="total">Total Due: TND 200.00</div>
     <p class="muted" style="margin-top: 18px;">Contact: billing@medcare.com | +1 555-0199</p>
   </div>
   <p style="margin-top: 20px; font-size: 12px; color: #555;">Tip: open this file in your browser and use Print to save as PDF for OCR testing.</p>

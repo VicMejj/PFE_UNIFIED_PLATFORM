@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api\Insurance;
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Controllers\Api\CrudTrait;
 use App\Http\Controllers\Api\CallsDjangoAI;
+use App\Models\Employee\Employee;
 use App\Models\Insurance\InsuranceClaim;
 use App\Models\Insurance\InsuranceClaimDocument;
 use App\Models\Insurance\InsuranceClaimHistory;
 use App\Models\Insurance\InsuranceClaimItem;
+use App\Models\Insurance\InsuranceEnrollment;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -16,9 +19,68 @@ class InsuranceClaimController extends ApiController
 {
     use CrudTrait, CallsDjangoAI;
 
+    protected function canManageAllClaims($user): bool
+    {
+        return (bool) ($user && method_exists($user, 'hasAnyRole') && $user->hasAnyRole([
+            'admin',
+            'rh_manager',
+            'rh',
+            'hr',
+            'manager',
+        ]));
+    }
+
+    protected function resolveAuthenticatedEmployee($user = null): ?Employee
+    {
+        $user ??= auth()->user();
+
+        if (! $user) {
+            return null;
+        }
+
+        return Employee::where('user_id', $user->getAuthIdentifier())->first();
+    }
+
+    protected function scopeEmployeeClaims(Builder $query, int $employeeId): Builder
+    {
+        return $query->where(function (Builder $claimQuery) use ($employeeId) {
+            $claimQuery
+                ->where('employee_id', $employeeId)
+                ->orWhereHas('enrollment', function (Builder $enrollmentQuery) use ($employeeId) {
+                    $enrollmentQuery->where('employee_id', $employeeId);
+                });
+        });
+    }
+
+    protected function accessibleClaimsQuery($user = null): Builder
+    {
+        $user ??= auth()->user();
+        $query = InsuranceClaim::query();
+
+        if ($this->canManageAllClaims($user)) {
+            return $query;
+        }
+
+        $employee = $this->resolveAuthenticatedEmployee($user);
+
+        if (! $employee) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $this->scopeEmployeeClaims($query, $employee->id);
+    }
+
+    protected function findAccessibleClaimOrFail($id, array $with = []): InsuranceClaim
+    {
+        return $this->accessibleClaimsQuery()
+            ->with($with)
+            ->findOrFail($id);
+    }
+
     public function index(Request $request)
     {
-        $query = InsuranceClaim::with(['enrollment.employee', 'enrollment.policy']);
+        $query = $this->accessibleClaimsQuery()->with(['enrollment.employee', 'enrollment.policy']);
+
         if ($status = $request->query('status')) {
             $query->where('status', $status);
         }
@@ -29,8 +91,7 @@ class InsuranceClaimController extends ApiController
     public function show($id)
     {
         try {
-            $claim = InsuranceClaim::with(['enrollment.policy', 'enrollment.employee', 'items', 'documents', 'history'])
-                ->findOrFail($id);
+            $claim = $this->findAccessibleClaimOrFail($id, ['enrollment.policy', 'enrollment.employee', 'items', 'documents', 'history']);
             return $this->successResponse($claim);
         } catch (\Exception $e) {
             return $this->errorResponse('Claim not found', 404);
@@ -39,37 +100,37 @@ class InsuranceClaimController extends ApiController
 
     public function myClaims(Request $request)
     {
+        $user = auth()->user();
+
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Authentication required. Please login again.',
+                'data' => []
+            ], 401);
+        }
+
+        $employee = $this->resolveAuthenticatedEmployee($user);
+
+        if (! $employee) {
+            return response()->json([
+                'success' => true,
+                'message' => 'No employee profile found',
+                'data' => []
+            ]);
+        }
+
         try {
-            $user = auth()->user();
-            
-            if (!$user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Authentication required. Please login again.',
-                    'data' => []
-                ], 401);
-            }
-            
-            $employee = \App\Models\Employee\Employee::where('user_id', $user->getAuthIdentifier())->first();
-            
-            if (!$employee) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'No employee profile found',
-                    'data' => []
-                ]);
+            $query = InsuranceClaim::with(['enrollment.policy', 'enrollment.employee'])
+                ->whereHas('enrollment', function (Builder $enrollmentQuery) use ($employee) {
+                    $enrollmentQuery->where('employee_id', $employee->id);
+                });
+
+            if ($status = $request->query('status')) {
+                $query->where('status', $status);
             }
 
-            $enrollmentIds = \App\Models\Insurance\InsuranceEnrollment::where('employee_id', $employee->id)->pluck('id')->toArray();
-
-            if (empty($enrollmentIds)) {
-                return response()->json([
-                    'success' => true,
-                    'data' => [],
-                ]);
-            }
-
-            $claims = \App\Models\Insurance\InsuranceClaim::whereIn('enrollment_id', $enrollmentIds)
+            $claims = $query
                 ->orderBy('created_at', 'desc')
                 ->limit(100)
                 ->get();
@@ -82,9 +143,9 @@ class InsuranceClaimController extends ApiController
             \Illuminate\Support\Facades\Log::error('My claims error: ' . $e->getMessage() . ' | Trace: ' . substr($e->getTraceAsString(), 0, 500));
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'Unable to load claims at this time.',
                 'error' => class_basename($e),
-            ], 500);
+            ], 200);
         }
     }
 
@@ -101,10 +162,24 @@ class InsuranceClaimController extends ApiController
                 'claimed_amount' => 'nullable|numeric',
             ]);
 
+            $user = auth()->user();
+            $employee = $this->resolveAuthenticatedEmployee($user);
+            $enrollment = InsuranceEnrollment::with('employee')->findOrFail($data['enrollment_id']);
+
+            if (! $this->canManageAllClaims($user)) {
+                if (! $employee) {
+                    return $this->errorResponse('No employee profile found for this account.', 422);
+                }
+
+                if ((int) $enrollment->employee_id !== (int) $employee->id) {
+                    return $this->errorResponse('You can only submit claims for your own insurance enrollment.', 403);
+                }
+            }
+
             // Attempt to find plan via enrollment if not provided
             if (empty($data['insurance_plan_id'])) {
                 $enrollmentModel = app('App\Models\Insurance\InsuranceEnrollment');
-                $enrollment = $enrollmentModel::find($data['enrollment_id']);
+                $enrollment = $enrollment ?? $enrollmentModel::find($data['enrollment_id']);
             }
 
             $data['date_filed'] = $data['date_filed'] ?? $data['claim_date'] ?? now()->toDateString();
@@ -113,6 +188,7 @@ class InsuranceClaimController extends ApiController
             $data['total_amount'] = $data['total_amount'] ?? $data['claimed_amount'] ?? 0;
             $data['claim_number'] = $data['claim_number'] ?? 'CLM-TMP-' . now()->format('YmdHis') . '-' . Str::upper(Str::random(4));
             $data['created_by'] = auth()->id();
+            $data['employee_id'] = $enrollment?->employee_id;
             $data['status'] = 'pending';
             
             $claim = InsuranceClaim::create($data);
@@ -162,7 +238,7 @@ class InsuranceClaimController extends ApiController
 
     public function uploadDocument(Request $request, $id)
     {
-        $claim = InsuranceClaim::with('plan')->findOrFail($id);
+        $claim = $this->findAccessibleClaimOrFail($id, ['plan', 'documents']);
         if (! $request->hasFile('document')) {
             return $this->errorResponse('Document file is required', 422);
         }
@@ -197,7 +273,7 @@ class InsuranceClaimController extends ApiController
 
     public function checkMissingDocuments($id)
     {
-        $claim = InsuranceClaim::with(['plan', 'documents'])->findOrFail($id);
+        $claim = $this->findAccessibleClaimOrFail($id, ['plan', 'documents']);
         $missing = $claim->getMissingDocuments();
         
         if (!empty($missing)) {
@@ -506,7 +582,7 @@ public function markAsSentToProvider($id)
 
     public function getHistory($id)
     {
-        $claim = InsuranceClaim::findOrFail($id);
+        $claim = $this->findAccessibleClaimOrFail($id);
         $history = $claim->history()->orderByDesc('changed_at')->get();
 
         return $this->successResponse($history);
@@ -514,7 +590,7 @@ public function markAsSentToProvider($id)
 
     public function processOCR(Request $request, $id)
     {
-        $claim = InsuranceClaim::findOrFail($id);
+        $claim = $this->findAccessibleClaimOrFail($id);
         $response = $this->djangoPost('/api/ai/ocr/process/', [
             'claim_id' => $claim->id,
         ]);
@@ -523,7 +599,7 @@ public function markAsSentToProvider($id)
 
     public function detectAnomalies($id)
     {
-        $claim = InsuranceClaim::findOrFail($id);
+        $claim = $this->findAccessibleClaimOrFail($id, ['enrollment']);
         $response = $this->djangoPost('/api/ai/fraud/detect/', [
             'claim_id' => $claim->id,
             'amount' => $claim->claimed_amount ?? $claim->total_amount,

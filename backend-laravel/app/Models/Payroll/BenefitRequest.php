@@ -247,7 +247,8 @@ class BenefitRequest extends Model
 
     public function generateRequestNumber(): string
     {
-        return 'BEN-' . date('Y') . '-' . str_pad($this->id ?? 0, 6, '0', STR_PAD_LEFT);
+        $id = $this->id ?? (static::max('id') ?? 0) + 1;
+        return 'BEN-' . date('Y') . '-' . str_pad($id, 6, '0', STR_PAD_LEFT);
     }
 
     protected static function boot()

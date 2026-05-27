@@ -192,8 +192,10 @@ export const platformApi = {
     return unwrapResponse(response)
   },
 
-  async getPaySlips() {
-    const response = await laravelApi.get('/payroll/pay-slips')
+  async getPaySlips(employeeId?: number) {
+    const response = await laravelApi.get('/payroll/pay-slips', {
+      params: employeeId ? { employee_id: employeeId } : undefined
+    })
     return unwrapResponse(response)
   },
 

@@ -37,6 +37,7 @@ const scoreTiers = computed(() => [
   { name: 'Good', count: summary.value.good_count || 0, color: 'text-blue-500', bg: 'bg-blue-500', percentage: ((summary.value.good_count || 0) / (summary.value.total_employees || 1)) * 100 },
   { name: 'Medium', count: summary.value.medium_count || 0, color: 'text-amber-500', bg: 'bg-amber-500', percentage: ((summary.value.medium_count || 0) / (summary.value.total_employees || 1)) * 100 },
   { name: 'Risk', count: summary.value.risk_count || 0, color: 'text-rose-500', bg: 'bg-rose-500', percentage: ((summary.value.risk_count || 0) / (summary.value.total_employees || 1)) * 100 },
+  { name: 'Not Started', count: summary.value.not_started_count || 0, color: 'text-slate-500', bg: 'bg-slate-400', percentage: ((summary.value.not_started_count || 0) / (summary.value.total_employees || 1)) * 100 },
 ])
 
 const loadDashboardData = async () => {

@@ -14,6 +14,7 @@ use App\Models\Notification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
@@ -42,111 +43,119 @@ class LeaveController extends ApiController
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'employee_id' => 'nullable|exists:employees,id',
-            'leave_type_id' => 'nullable|exists:leave_types,id',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
-            'duration_type' => 'sometimes|in:full_day,half_day_morning,half_day_afternoon',
-            'reason' => 'nullable|string|max:1000',
-            'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
-        ]);
-
-        $data['employee_id'] = $this->resolveTargetEmployeeId($data['employee_id'] ?? null);
-
-        if (empty($data['employee_id'])) {
-            return $this->errorResponse(
-                'No employee profile is linked to this account yet.',
-                422,
-                ['employee_id' => ['No employee profile is linked to this account yet.']]
-            );
-        }
-
-        if (empty($data['leave_type_id']) && Schema::hasColumn('leaves', 'leave_type_id')) {
-            $data['leave_type_id'] = LeaveType::query()
-                ->when(Schema::hasColumn('leave_types', 'is_active'), fn ($query) => $query->where('is_active', true))
-                ->value('id');
-        }
-
-        if (empty($data['leave_type_id']) && Schema::hasColumn('leaves', 'leave_type_id')) {
-            return $this->errorResponse(
-                'No leave types are configured yet. Please contact an administrator.',
-                422,
-                ['leave_type_id' => ['No leave types are configured yet.']]
-            );
-        }
-
-        $startDate = Carbon::parse($data['start_date']);
-        $endDate = Carbon::parse($data['end_date']);
-        $policyCheck = $this->evaluateLeaveRequest(
-            $data['employee_id'],
-            $data['leave_type_id'] ?? null,
-            $startDate,
-            $endDate,
-        );
-
-        if (! empty($policyCheck['errors'])) {
-            return $this->errorResponse('Validation failed', 422, $policyCheck['errors']);
-        }
-
-        $payload = [
-            'employee_id' => $data['employee_id'],
-            'leave_type_id' => $data['leave_type_id'] ?? null,
-            'start_date' => $data['start_date'],
-            'end_date' => $data['end_date'],
-            'duration_type' => $data['duration_type'] ?? 'full_day',
-            'reason' => $data['reason'] ?? null,
-            'status' => 'pending',
-            'total_days' => $policyCheck['working_days'],
-            'policy_violations' => $policyCheck['policy_violations'],
-        ];
-
-        if (! empty($data['leave_type_id']) && Schema::hasColumn('leaves', 'leave_type_id')) {
-            $payload['leave_type_id'] = $data['leave_type_id'];
-        }
-
-        if (Schema::hasColumn('leaves', 'days_requested')) {
-            $payload['days_requested'] = $this->resolveRequestedDays($payload['duration_type'], $policyCheck['working_days']);
-        }
-
-        $leave = Leave::create($payload);
-        $this->storeAttachments($request, $leave);
-
         try {
-            $response = $this->djangoPost('/api/ai/leave/approval-probability/', [
-                'employee_id' => $leave->employee_id,
-                'leave_type_id' => $leave->leave_type_id,
-                'start_date' => $leave->start_date->toDateString(),
-                'end_date' => $leave->end_date->toDateString(),
-                'total_days' => $leave->total_days,
-                'policy_violations' => $policyCheck['policy_violations'],
+            $data = $request->validate([
+                'employee_id' => 'nullable|exists:employees,id',
+                'leave_type_id' => 'nullable|exists:leave_types,id',
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after:start_date',
+                'duration_type' => 'sometimes|in:full_day,half_day_morning,half_day_afternoon',
+                'reason' => 'nullable|string|max:1000',
+                'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
             ]);
 
-            if ($response->successful()) {
-                $probability = $response->json('data.approval_probability');
-                if (is_numeric($probability)) {
-                    $leave->update(['approval_probability' => (float) $probability]);
-                }
+            $data['employee_id'] = $this->resolveTargetEmployeeId($data['employee_id'] ?? null);
+
+            if (empty($data['employee_id'])) {
+                return $this->errorResponse(
+                    'No employee profile is linked to this account yet.',
+                    422,
+                    ['employee_id' => ['No employee profile is linked to this account yet.']]
+                );
             }
-        } catch (\Throwable $e) {
-            // Silently ignore AI service failures for leave creation.
+
+            if (empty($data['leave_type_id']) && Schema::hasColumn('leaves', 'leave_type_id')) {
+                $data['leave_type_id'] = LeaveType::query()
+                    ->when(Schema::hasColumn('leave_types', 'is_active'), fn ($query) => $query->where('is_active', true))
+                    ->value('id');
+            }
+
+            if (empty($data['leave_type_id']) && Schema::hasColumn('leaves', 'leave_type_id')) {
+                return $this->errorResponse(
+                    'No leave types are configured yet. Please contact an administrator.',
+                    422,
+                    ['leave_type_id' => ['No leave types are configured yet.']]
+                );
+            }
+
+            $startDate = Carbon::parse($data['start_date']);
+            $endDate = Carbon::parse($data['end_date']);
+            $policyCheck = $this->evaluateLeaveRequest(
+                $data['employee_id'],
+                $data['leave_type_id'] ?? null,
+                $startDate,
+                $endDate,
+            );
+
+            if (! empty($policyCheck['errors'])) {
+                return $this->errorResponse('Validation failed', 422, $policyCheck['errors']);
+            }
+
+            $payload = [
+                'employee_id' => $data['employee_id'],
+                'leave_type_id' => $data['leave_type_id'] ?? null,
+                'start_date' => $data['start_date'],
+                'end_date' => $data['end_date'],
+                'duration_type' => $data['duration_type'] ?? 'full_day',
+                'reason' => $data['reason'] ?? null,
+                'status' => 'pending',
+                'total_days' => $policyCheck['working_days'],
+                'policy_violations' => $policyCheck['policy_violations'],
+            ];
+
+            if (! empty($data['leave_type_id']) && Schema::hasColumn('leaves', 'leave_type_id')) {
+                $payload['leave_type_id'] = $data['leave_type_id'];
+            }
+
+            if (Schema::hasColumn('leaves', 'days_requested')) {
+                $payload['days_requested'] = $this->resolveRequestedDays($payload['duration_type'], $policyCheck['working_days']);
+            }
+
+            $leave = Leave::create($payload);
+            $this->storeAttachments($request, $leave);
+
+            try {
+                $response = $this->djangoPost('/api/ai/leave/approval-probability/', [
+                    'employee_id' => $leave->employee_id,
+                    'leave_type_id' => $leave->leave_type_id,
+                    'start_date' => $leave->start_date->toDateString(),
+                    'end_date' => $leave->end_date->toDateString(),
+                    'total_days' => $leave->total_days,
+                    'policy_violations' => $policyCheck['policy_violations'],
+                ]);
+
+                if ($response->successful()) {
+                    $probability = $response->json('data.approval_probability');
+                    if (is_numeric($probability)) {
+                        $leave->update(['approval_probability' => (float) $probability]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Silently ignore AI service failures for leave creation.
+            }
+
+            Notification::firstOrCreate(
+                ['dedup_key' => 'leave_submitted_' . $leave->id],
+                [
+                    'type' => 'leave_submitted',
+                    'payload' => [
+                        'title' => 'Leave request submitted',
+                        'message' => "A new leave request is pending review for employee ID {$leave->employee_id}.",
+                        'action' => '/rh/leaves',
+                    ],
+                    'target_roles' => ['admin', 'rh_manager', 'rh', 'manager'],
+                    'channel' => 'in_app',
+                ]
+            );
+
+            return $this->successResponse($leave->load(['employee', 'leaveType', 'approvedBy', 'attachments']), 'Leave request submitted successfully.', 201);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Leave store error: ' . $e->getMessage() . ' | Trace: ' . substr($e->getTraceAsString(), 0, 1000));
+            return $this->errorResponse(
+                'Unable to submit leave request at this time. Please try again later.',
+                500
+            );
         }
-
-        Notification::firstOrCreate(
-            ['dedup_key' => 'leave_submitted_' . $leave->id],
-            [
-                'type' => 'leave_submitted',
-                'payload' => [
-                    'title' => 'Leave request submitted',
-                    'message' => "A new leave request is pending review for employee ID {$leave->employee_id}.",
-                    'action' => '/rh/leaves',
-                ],
-                'target_roles' => ['admin', 'rh_manager', 'rh', 'manager'],
-                'channel' => 'in_app',
-            ]
-        );
-
-        return $this->successResponse($leave->load(['employee', 'leaveType', 'approvedBy', 'attachments']), 'Leave request submitted successfully.', 201);
     }
 
     public function requestInsights(Request $request): JsonResponse
@@ -450,17 +459,41 @@ class LeaveController extends ApiController
     {
         $employeeId = $this->resolveTargetEmployeeId($request->integer('employee_id'));
 
+        if (! $employeeId) {
+            return $this->successResponse(
+                $this->fallbackOptimalDates(),
+                'Optimal dates fallback returned'
+            );
+        }
+
         try {
             $response = $this->djangoPost('/api/ai/leave/optimal-dates/', [
                 'employee_id' => $employeeId,
             ]);
-            return $this->forwardDjangoResponse($response);
+
+            if ($response->successful()) {
+                return $this->successResponse(
+                    $response->json('data') ?? $response->json(),
+                    $response->json('message')
+                );
+            }
+
+            Log::warning('Leave optimal dates AI returned a non-success response.', [
+                'employee_id' => $employeeId,
+                'status' => $response->status(),
+                'body' => $response->json() ?? $response->body(),
+            ]);
         } catch (\Throwable $e) {
-            return $this->successResponse([
-                'suggested_dates' => [],
-                'note' => 'AI service unavailable',
-            ], 'Optimal dates fallback returned');
+            Log::warning('Leave optimal dates AI request failed.', [
+                'employee_id' => $employeeId,
+                'error' => $e->getMessage(),
+            ]);
         }
+
+        return $this->successResponse(
+            $this->fallbackOptimalDates(),
+            'Optimal dates fallback returned'
+        );
     }
 
     private function canManageLeaves(): bool
@@ -501,10 +534,19 @@ class LeaveController extends ApiController
             $errors['end_date'][] = 'The end date must be after the start date.';
         }
 
-        $holidayMap = Holiday::query()
-            ->whereBetween('holiday_date', [$startDate->toDateString(), $endDate->toDateString()])
-            ->get(['name', 'holiday_date'])
-            ->keyBy(fn ($holiday) => Carbon::parse($holiday->holiday_date)->toDateString());
+        $holidayColumns = Schema::getColumnListing('holidays');
+        $hasHolidayDate = in_array('holiday_date', $holidayColumns);
+        $hasName = in_array('name', $holidayColumns);
+        
+        if ($hasHolidayDate) {
+            $selectColumns = $hasName ? ['name', 'holiday_date'] : ['holiday_date'];
+            $holidayMap = Holiday::query()
+                ->whereBetween('holiday_date', [$startDate->toDateString(), $endDate->toDateString()])
+                ->get($selectColumns)
+                ->keyBy(fn ($holiday) => Carbon::parse($holiday->holiday_date)->toDateString());
+        } else {
+            $holidayMap = collect();
+        }
 
         $weekendDates = [];
         $holidayDates = [];
@@ -518,11 +560,11 @@ class LeaveController extends ApiController
                 continue;
             }
 
-            if ($holidayMap->has($dateKey)) {
+            if ($hasHolidayDate && $holidayMap->has($dateKey)) {
                 $holiday = $holidayMap->get($dateKey);
                 $holidayDates[] = sprintf(
                     '%s (%s)',
-                    $holiday->name ?: 'Holiday',
+                    $holiday->name ?? 'Holiday',
                     $dateKey
                 );
                 continue;
@@ -712,6 +754,58 @@ class LeaveController extends ApiController
             ->filter(fn ($message) => filled($message))
             ->values()
             ->all();
+    }
+
+    private function fallbackOptimalDates(): array
+    {
+        $recommendedSingleDays = [];
+        $cursor = now()->startOfDay();
+
+        while (count($recommendedSingleDays) < 3) {
+            if (! $cursor->isWeekend()) {
+                $recommendedSingleDays[] = [
+                    'date' => $cursor->toDateString(),
+                    'weekday' => $cursor->format('l'),
+                    'suitability_score' => max(0.7, 0.82 - (count($recommendedSingleDays) * 0.04)),
+                ];
+            }
+
+            $cursor->addDay();
+        }
+
+        $windowStart = Carbon::parse($recommendedSingleDays[0]['date']);
+        $windowEnd = $this->advanceWorkingDays($windowStart, 2);
+
+        return [
+            'recommended_single_days' => $recommendedSingleDays,
+            'recommended_windows' => [
+                [
+                    'start_date' => $windowStart->toDateString(),
+                    'end_date' => $windowEnd->toDateString(),
+                    'suitability_score' => 0.78,
+                ],
+            ],
+            'source' => 'local-fallback',
+            'note' => 'AI service unavailable',
+        ];
+    }
+
+    private function advanceWorkingDays(Carbon $start, int $additionalWorkingDays): Carbon
+    {
+        $cursor = $start->copy();
+        $added = 0;
+
+        while ($added < $additionalWorkingDays) {
+            $cursor->addDay();
+
+            if ($cursor->isWeekend()) {
+                continue;
+            }
+
+            $added++;
+        }
+
+        return $cursor;
     }
 
     private function estimateApprovalProbability(

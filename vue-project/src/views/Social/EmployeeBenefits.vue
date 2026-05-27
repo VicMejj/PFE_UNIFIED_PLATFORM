@@ -123,9 +123,14 @@ function getScoreVariant(score: number | undefined | null) {
   return 'destructive'
 }
 
-function getScoreTierLabel(tier: string | undefined) {
+function getScoreTierLabel(scoreOrTier: any) {
+  const tier = typeof scoreOrTier === 'string' ? scoreOrTier : scoreOrTier?.score_tier
   if (!tier) return 'No Score'
-  return tier.charAt(0).toUpperCase() + tier.slice(1)
+  if (tier === 'not_started') return 'Not Started'
+  return String(tier)
+    .split('_')
+    .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
 async function loadData() {
@@ -170,7 +175,7 @@ async function selectEmployee(employee: any) {
     employeeAllowances.value = allowanceItems.map((item: any) => ({
       ...item,
       benefit_name: item.allowanceOption?.name || item.allowance_option?.name || item.name || 'Benefit',
-      amount: item.amount ? `$${Number(item.amount).toFixed(2)}` : 'N/A',
+      amount: item.amount ? `TND ${Number(item.amount).toFixed(2)}` : 'N/A',
       start_date: item.start_date || 'N/A',
       status: item.status || 'active'
     }))
@@ -385,7 +390,7 @@ onMounted(loadData)
                 </Badge>
                 <div>
                   <div class="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Holistic Score</div>
-                  <div class="text-sm font-semibold capitalize">{{ getScoreTierLabel(normalizedScore.score_tier) }} Performance</div>
+                  <div class="text-sm font-semibold capitalize">{{ getScoreTierLabel(normalizedScore) }} Performance</div>
                 </div>
               </div>
               <div class="text-right">

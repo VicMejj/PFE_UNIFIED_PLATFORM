@@ -295,38 +295,8 @@ Route::middleware('auth:api')->group(function () {
         
         Route::apiResource('dependents', App\Http\Controllers\Api\Insurance\InsuranceDependentController::class);
         
-        Route::apiResource('claims', App\Http\Controllers\Api\Insurance\InsuranceClaimController::class);
         Route::get('claims/my', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'myClaims'])->name('claims.my');
-        
-        Route::post('claims/my-test', function (Illuminate\Http\Request $request) {
-            try {
-                $employeeId = $request->input('employee_id');
-                
-                if (!$employeeId && auth()->check()) {
-                    $employee = \App\Models\Employee\Employee::where('user_id', auth()->id())->first();
-                    $employeeId = $employee?->id;
-                }
-                
-                if (!$employeeId) {
-                    return response()->json(['success' => false, 'message' => 'Employee ID required'], 400);
-                }
-                
-                $enrollmentIds = \App\Models\Insurance\InsuranceEnrollment::where('employee_id', $employeeId)->pluck('id')->toArray();
-                
-                if (empty($enrollmentIds)) {
-                    return response()->json(['success' => true, 'data' => []]);
-                }
-                
-                $claims = \App\Models\Insurance\InsuranceClaim::whereIn('enrollment_id', $enrollmentIds)
-                    ->orderBy('created_at', 'desc')
-                    ->limit(100)
-                    ->get();
-                
-                return response()->json(['success' => true, 'data' => $claims]);
-            } catch (\Exception $e) {
-                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-            }
-        });
+        Route::apiResource('claims', App\Http\Controllers\Api\Insurance\InsuranceClaimController::class);
         
         Route::post('claims/{id}/add-item', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'addItem']);
         Route::post('claims/{id}/upload-document', [App\Http\Controllers\Api\Insurance\InsuranceClaimController::class, 'uploadDocument']);

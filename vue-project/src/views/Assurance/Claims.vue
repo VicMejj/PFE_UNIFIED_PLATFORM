@@ -166,7 +166,7 @@ const fetchClaims = async () => {
         item.employee?.full_name ||
         item.employee_name) ?? 'Unknown Employee',
       date_filed: item.claim_date || item.date_filed || 'Not set',
-      amount_requested: `$${Number(item.claimed_amount || item.total_amount || 0).toLocaleString()}`,
+      amount_requested: `TND ${Number(item.claimed_amount || item.total_amount || 0).toLocaleString()}`,
       status: String(item.status || 'pending').replace(/_/g, ' '),
     }))
   } catch (err: any) {
@@ -329,7 +329,7 @@ async function applyClaimAction(action: 'approve' | 'reject' | 'paid' | 'send_to
 
     if (action === 'send_to_payroll') {
       const result: any = await sendClaimToPayroll(currentId)
-      feedback.value = `Claim ${selectedClaim.value.claim_number} sent to payroll! Reimbursement: $${result.reimbursement_amount} (Company kept: $${result.company_discount})`
+      feedback.value = `Claim ${selectedClaim.value.claim_number} sent to payroll! Reimbursement: TND ${result.reimbursement_amount} (Company kept: TND ${result.company_discount})`
     }
 
     if (action === 'reject') {
@@ -533,11 +533,11 @@ onMounted(initAndFetchClaims)
                 </div>
                 <div v-if="selectedClaim.approved_amount">
                   <div class="text-slate-500">Approved Amount</div>
-                  <div class="font-semibold text-emerald-600">${{ Number(selectedClaim.approved_amount).toFixed(2) }}</div>
+                  <div class="font-semibold text-emerald-600">TND {{ Number(selectedClaim.approved_amount).toFixed(2) }}</div>
                 </div>
                 <div v-if="selectedClaim.reimbursement_amount">
                   <div class="text-slate-500">Employee Reimbursement (90%)</div>
-                  <div class="font-semibold text-blue-600">${{ Number(selectedClaim.reimbursement_amount).toFixed(2) }}</div>
+                  <div class="font-semibold text-blue-600">TND {{ Number(selectedClaim.reimbursement_amount).toFixed(2) }}</div>
                 </div>
                 <div>
                   <div class="text-slate-500">Filed On</div>

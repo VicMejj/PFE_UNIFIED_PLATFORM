@@ -281,9 +281,7 @@ export const djangoAiApi = {
     formData.append('document', file)
 
     try {
-      const response = await djangoApi.post('/ai/ocr/process/', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      const response = await djangoApi.post('/ai/ocr/process/', formData)
       return unwrapResponse(response)
     } catch (error) {
       if (isDjangoOffline(error)) {
@@ -298,9 +296,7 @@ export const djangoAiApi = {
     formData.append('document', file)
 
     try {
-      const response = await djangoApi.post('/ai/document/classify/', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      const response = await djangoApi.post('/ai/document/classify/', formData)
       return unwrapResponse(response)
     } catch (error) {
       if (isDjangoOffline(error)) return fallbackDocumentClassification({ document: file })

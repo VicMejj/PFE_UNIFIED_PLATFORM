@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\Leave;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\LeaveType;
+use App\Models\Leave\LeaveType;
 use App\Http\Controllers\Api\CrudTrait;
 use Illuminate\Http\Request;
 
@@ -11,7 +11,7 @@ class LeaveTypeController extends ApiController
 {
     use CrudTrait;
 
-    protected $modelClass = \App\Models\LeaveType::class;
+    protected $modelClass = LeaveType::class;
     protected $validationRules = [];
 
     public function index(Request $request)

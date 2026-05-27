@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api\Payroll;
 
 use App\Http\Controllers\Api\ApiController;
+use App\Models\Employee\Employee;
+use App\Models\Notification;
 use App\Models\Payroll\BenefitRequest;
 use App\Models\Payroll\BenefitRequestDocument;
-use App\Models\Payroll\AllowanceOption;
-use App\Models\Employee\Employee;
 use App\Services\EmployeeScoreService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class BenefitRequestController extends ApiController
 {
@@ -77,7 +77,7 @@ class BenefitRequestController extends ApiController
     {
         $employee = Employee::where('user_id', auth()->id())->first();
 
-        if (!$employee) {
+        if (! $employee) {
             return $this->errorResponse('Employee profile not found', 404);
         }
 
@@ -118,7 +118,7 @@ class BenefitRequestController extends ApiController
     {
         $employee = Employee::where('user_id', auth()->id())->first();
 
-        if (!$employee) {
+        if (! $employee) {
             return $this->errorResponse('Employee profile not found', 404);
         }
 
@@ -128,21 +128,6 @@ class BenefitRequestController extends ApiController
             'reason' => 'required|string',
             'supporting_documents' => 'nullable|array',
         ]);
-
-        // Check if employee is eligible based on score
-        $allowanceOption = AllowanceOption::findOrFail($validated['allowance_option_id']);
-        $eligibilityRule = $allowanceOption->benefitEligibilityRules()->first();
-
-        $isEligible = true;
-        $eligibilityMessage = '';
-
-        if ($eligibilityRule && $eligibilityRule->threshold > 0) {
-            $score = $this->scoreService->getScore($employee);
-            if ($score->overall_score < $eligibilityRule->threshold) {
-                $isEligible = false;
-                $eligibilityMessage = "Your score ({$score->overall_score}) is below the required threshold ({$eligibilityRule->threshold})";
-            }
-        }
 
         // Create the request
         $benefitRequest = BenefitRequest::create([
@@ -155,20 +140,7 @@ class BenefitRequestController extends ApiController
             'status' => BenefitRequest::STATUS_SUBMITTED,
         ]);
 
-        $response = $this->successResponse($benefitRequest, 'Benefit request submitted successfully', 201);
-
-        if (!$isEligible) {
-            $response->setData([
-                'data' => $benefitRequest,
-                'message' => 'Request submitted but may be rejected due to eligibility',
-                'eligibility' => [
-                    'is_eligible' => $isEligible,
-                    'message' => $eligibilityMessage,
-                ],
-            ]);
-        }
-
-        return $response;
+        return $this->successResponse($benefitRequest, 'Benefit request submitted successfully', 201);
     }
 
     /**
@@ -178,7 +150,7 @@ class BenefitRequestController extends ApiController
     {
         $benefitRequest = BenefitRequest::findOrFail($id);
 
-        if (!$request->hasFile('document')) {
+        if (! $request->hasFile('document')) {
             return $this->errorResponse('Document file is required', 422);
         }
 
@@ -205,7 +177,7 @@ class BenefitRequestController extends ApiController
     {
         $benefitRequest = BenefitRequest::findOrFail($id);
 
-        if (!in_array($benefitRequest->status, [BenefitRequest::STATUS_SUBMITTED])) {
+        if (! in_array($benefitRequest->status, [BenefitRequest::STATUS_SUBMITTED])) {
             return $this->errorResponse('Request cannot be reviewed in current status', 422);
         }
 
@@ -226,12 +198,31 @@ class BenefitRequestController extends ApiController
             'comments' => 'nullable|string',
         ]);
 
-        if (!$benefitRequest->canBeApproved()) {
+        if (! $benefitRequest->canBeApproved()) {
             return $this->errorResponse('Request cannot be approved in current status', 422);
         }
 
         $approvedAmount = $validated['approved_amount'] ?? $benefitRequest->requested_amount;
         $benefitRequest->approve($approvedAmount, auth()->user(), $validated['comments'] ?? null);
+
+        try {
+            $benefitRequest->load('employee', 'allowanceOption');
+            if ($benefitRequest->employee && $benefitRequest->employee->user_id) {
+                Notification::create([
+                    'type' => 'benefit_request_approved',
+                    'actor_id' => auth()->id(),
+                    'target_user_ids' => [$benefitRequest->employee->user_id],
+                    'payload' => [
+                        'title' => 'Benefit Request Approved',
+                        'message' => "Your request {$benefitRequest->request_number} for {$benefitRequest->allowanceOption?->name} has been approved.",
+                        'action' => '/social/claims',
+                    ],
+                    'channel' => 'in_app',
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::warning('Failed to send benefit approval notification: '.$e->getMessage());
+        }
 
         return $this->successResponse($benefitRequest, 'Benefit request approved successfully');
     }
@@ -247,11 +238,30 @@ class BenefitRequestController extends ApiController
             'reason' => 'required|string',
         ]);
 
-        if (!$benefitRequest->canBeApproved()) {
+        if (! $benefitRequest->canBeApproved()) {
             return $this->errorResponse('Request cannot be rejected in current status', 422);
         }
 
         $benefitRequest->reject(auth()->user(), $validated['reason']);
+
+        try {
+            $benefitRequest->load('employee', 'allowanceOption');
+            if ($benefitRequest->employee && $benefitRequest->employee->user_id) {
+                Notification::create([
+                    'type' => 'benefit_request_rejected',
+                    'actor_id' => auth()->id(),
+                    'target_user_ids' => [$benefitRequest->employee->user_id],
+                    'payload' => [
+                        'title' => 'Benefit Request Rejected',
+                        'message' => "Your request {$benefitRequest->request_number} for {$benefitRequest->allowanceOption?->name} was rejected. Reason: {$validated['reason']}",
+                        'action' => '/social/claims',
+                    ],
+                    'channel' => 'in_app',
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::warning('Failed to send benefit rejection notification: '.$e->getMessage());
+        }
 
         return $this->successResponse($benefitRequest, 'Benefit request rejected');
     }
@@ -263,7 +273,7 @@ class BenefitRequestController extends ApiController
     {
         $benefitRequest = BenefitRequest::findOrFail($id);
 
-        if (!$benefitRequest->isApproved()) {
+        if (! $benefitRequest->isApproved()) {
             return $this->errorResponse('Only approved requests can be marked as delivered', 422);
         }
 
@@ -279,7 +289,7 @@ class BenefitRequestController extends ApiController
     {
         $benefitRequest = BenefitRequest::findOrFail($id);
 
-        if (!in_array($benefitRequest->status, [BenefitRequest::STATUS_DRAFT, BenefitRequest::STATUS_SUBMITTED])) {
+        if (! in_array($benefitRequest->status, [BenefitRequest::STATUS_DRAFT, BenefitRequest::STATUS_SUBMITTED])) {
             return $this->errorResponse('Only draft or submitted requests can be cancelled', 422);
         }
 
@@ -344,7 +354,7 @@ class BenefitRequestController extends ApiController
         $allowanceOption = $benefitRequest->allowanceOption;
         $eligibilityRule = $allowanceOption->benefitEligibilityRules()->first();
 
-        if (!$eligibilityRule || !$eligibilityRule->auto_approve_threshold) {
+        if (! $eligibilityRule || ! $eligibilityRule->auto_approve_threshold) {
             return $this->errorResponse('Auto-approval not configured for this benefit', 422);
         }
 
@@ -362,12 +372,12 @@ class BenefitRequestController extends ApiController
 
         if ($eligibilityRule->threshold > 0 && $score->overall_score < $eligibilityRule->threshold) {
             return $this->errorResponse(
-                "Employee score below required threshold",
+                'Employee score below required threshold',
                 422
             );
         }
 
-        $benefitRequest->markAsAutoApproved("Amount below threshold and score meets requirements");
+        $benefitRequest->markAsAutoApproved('Amount below threshold and score meets requirements');
 
         return $this->successResponse($benefitRequest, 'Benefit request auto-approved');
     }

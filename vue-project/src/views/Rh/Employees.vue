@@ -14,7 +14,7 @@ import Input from '@/components/ui/Input.vue'
 import Label from '@/components/ui/Label.vue'
 import { platformApi } from '@/api/laravel/platform'
 import { djangoAiApi } from '@/api/django/ai'
-import { isNetworkOrServerUnavailable, unwrapItems } from '@/api/http'
+import { getApiErrorMessage, isNetworkOrServerUnavailable, unwrapItems } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 
@@ -39,6 +39,7 @@ const predictionEmployee = ref('')
 const predictionError = ref('')
 const feedback = ref('')
 const errorMsg = ref('')
+const isSaving = ref(false)
 const searchQuery = ref('')
 const selectedPendingUser = ref<any | null>(null)
 
@@ -100,16 +101,52 @@ const pendingProfilesCount = computed(() =>
   directoryItems.value.filter((item) => item.isPendingProfile).length
 )
 
+type EmployeeFormValidation =
+  | { ok: false; error: string }
+  | {
+      ok: true
+      branchId: number
+      departmentId: number
+      designationId: number
+      trimmedAddress: string
+      trimmedEmail: string
+      trimmedName: string
+    }
+
 function formatEmployeeItem(employee: any) {
   return {
     ...employee,
     salary_amount: employee.salary === null || employee.salary === undefined || employee.salary === ''
       ? null
       : Number(employee.salary),
-    salary: employee.salary ? `$${Number(employee.salary).toLocaleString()}` : 'Not set',
+    salary: employee.salary ? `TND ${Number(employee.salary).toLocaleString()}` : 'Not set',
     status: employee.is_active ? 'Active' : 'Inactive',
     isPendingProfile: false,
   }
+}
+
+function normalizeRoleName(role: unknown): string | null {
+  if (typeof role === 'string') {
+    const normalized = role.trim().toLowerCase()
+    return normalized || null
+  }
+
+  if (role && typeof role === 'object' && typeof (role as { name?: unknown }).name === 'string') {
+    const normalized = String((role as { name: string }).name).trim().toLowerCase()
+    return normalized || null
+  }
+
+  return null
+}
+
+function resolveUserRoles(user: any): string[] {
+  if (!Array.isArray(user?.roles)) {
+    return []
+  }
+
+  return user.roles
+    .map((role: unknown) => normalizeRoleName(role))
+    .filter((role: string | null): role is string => Boolean(role))
 }
 
 function mergeUsersWithoutProfiles(employeeItems: any[], users: any[]) {
@@ -131,7 +168,7 @@ function mergeUsersWithoutProfiles(employeeItems: any[], users: any[]) {
       salary: 'Not set',
       status: 'Pending profile',
       isPendingProfile: true,
-      roles: Array.isArray(user.roles) ? user.roles : [],
+      roles: resolveUserRoles(user),
       created_at: user.created_at,
     }))
     .sort((left, right) => String(right.created_at ?? '').localeCompare(String(left.created_at ?? '')))
@@ -245,12 +282,67 @@ function toggleCreateForm() {
 function deriveRole(user: any, preferredRole?: string) {
   if (preferredRole) return preferredRole
 
-  const roles = Array.isArray(user?.roles) ? user.roles : []
+  const roles = resolveUserRoles(user)
 
   if (roles.includes('admin')) return 'admin'
   if (roles.includes('rh')) return 'rh'
   if (roles.includes('manager')) return 'manager'
   return 'user'
+}
+
+function parseSelectedId(value: string): number | null {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function parseSalaryAmount(value: string): number {
+  if (!value.trim()) return 0
+
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function validateEmployeeForm(): EmployeeFormValidation {
+  const branchId = parseSelectedId(form.branch_id)
+  const departmentId = parseSelectedId(form.department_id)
+  const designationId = parseSelectedId(form.designation_id)
+  const trimmedName = form.name.trim()
+  const trimmedEmail = form.email.trim()
+  const trimmedAddress = form.address.trim()
+
+  if (!trimmedName) {
+    return { ok: false, error: 'Employee name is required.' }
+  }
+
+  if (!trimmedEmail) {
+    return { ok: false, error: 'Employee email is required.' }
+  }
+
+  if (!trimmedAddress) {
+    return { ok: false, error: 'Employee address is required.' }
+  }
+
+  if (!branchId) {
+    return { ok: false, error: 'Please select a branch before creating the employee.' }
+  }
+
+  if (!departmentId) {
+    return { ok: false, error: 'Please select a department before creating the employee.' }
+  }
+
+  if (!designationId) {
+    return { ok: false, error: 'Please select a designation before creating the employee.' }
+  }
+
+  return {
+    ok: true,
+    branchId,
+    departmentId,
+    designationId,
+    trimmedAddress,
+    trimmedEmail,
+    trimmedName,
+  }
 }
 
 function getUserIdForItem(item: any): number | null {
@@ -357,17 +449,32 @@ function startPendingProfile(item: any, preferredRole?: string) {
 }
 
 async function createEmployee() {
+  if (isSaving.value) {
+    return
+  }
+
+  const validation = validateEmployeeForm()
+  if (!validation.ok) {
+    errorMsg.value = validation.error
+    feedback.value = ''
+    return
+  }
+
+  isSaving.value = true
+  feedback.value = ''
+  errorMsg.value = ''
+
   try {
     await platformApi.createEmployee({
       user_id: form.user_id ? Number(form.user_id) : undefined,
-      name: form.name,
-      email: form.email,
+      name: validation.trimmedName,
+      email: validation.trimmedEmail,
       gender: form.gender,
-      address: form.address,
-      branch_id: Number(form.branch_id),
-      department_id: Number(form.department_id),
-      designation_id: Number(form.designation_id),
-      salary: Number(form.salary || 0),
+      address: validation.trimmedAddress,
+      branch_id: validation.branchId,
+      department_id: validation.departmentId,
+      designation_id: validation.designationId,
+      salary: parseSalaryAmount(form.salary),
       roles: [form.role]
     })
     feedback.value = selectedPendingUser.value
@@ -386,7 +493,11 @@ async function createEmployee() {
 
     await fetchEmployees()
   } catch (error: any) {
-    errorMsg.value = error.response?.data?.message ?? 'Unable to create employee.'
+    errorMsg.value = isNetworkOrServerUnavailable(error)
+      ? 'Laravel is unavailable right now, so the employee could not be created.'
+      : getApiErrorMessage(error, 'Unable to create employee.')
+  } finally {
+    isSaving.value = false
   }
 }
 
@@ -540,8 +651,8 @@ onMounted(fetchEmployees)
           >
             Clear Pending User
           </Button>
-          <Button @click="createEmployee">
-            {{ selectedPendingUser ? 'Accept User' : 'Create Employee' }}
+          <Button :disabled="isSaving" @click="createEmployee">
+            {{ isSaving ? 'Saving...' : selectedPendingUser ? 'Accept User' : 'Create Employee' }}
           </Button>
         </div>
       </CardContent>

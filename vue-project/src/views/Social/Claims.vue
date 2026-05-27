@@ -1,6 +1,10 @@
+<script lang="ts">
+export default { name: 'SocialClaims' }
+</script>
+
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { CheckCircle2, FileHeart, Sparkles, XCircle } from 'lucide-vue-next'
+import { CheckCircle2, Clock, FileHeart, List, Sparkles, XCircle } from 'lucide-vue-next'
 import Card from '@/components/ui/Card.vue'
 import CardContent from '@/components/ui/CardContent.vue'
 import Button from '@/components/ui/Button.vue'
@@ -13,10 +17,24 @@ import { platformApi } from '@/api/laravel/platform'
 import { unwrapItems } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 
+interface BenefitRequest {
+  id: number
+  request_number: string
+  status: string
+  employee?: { name?: string; full_name?: string }
+  employee_name?: string
+  allowance_option?: { name: string }
+  benefit_name?: string
+  requested_amount: number | string
+  created_at: string
+  comments?: string
+  reason?: string
+}
+
 const auth = useAuthStore()
-const items = ref<any[]>([])
+const items = ref<BenefitRequest[]>([])
 const isLoading = ref(true)
-const selectedRequest = ref<any>(null)
+const selectedRequest = ref<BenefitRequest | null>(null)
 const showReviewModal = ref(false)
 const reviewNotes = ref('')
 const feedback = ref('')
@@ -28,6 +46,31 @@ const isHR = computed(() => {
     .map((r) => String(r).toLowerCase())
   return roles.some((r) => ['admin', 'rh', 'hr', 'manager'].includes(r))
 })
+
+const statusFilter = ref<string>('all')
+
+const filterTabs = [
+  { key: 'all', label: 'All', icon: List },
+  { key: 'pending', label: 'Pending', icon: Clock },
+  { key: 'approved', label: 'Approved', icon: CheckCircle2 },
+  { key: 'rejected', label: 'Rejected', icon: XCircle },
+]
+
+function matchesStatusFilter(item: BenefitRequest, filter: string): boolean {
+  const s = String(item.status).toLowerCase()
+  switch (filter) {
+    case 'pending': return ['submitted', 'under_review'].includes(s)
+    case 'approved': return ['approved', 'delivered'].includes(s)
+    case 'rejected': return ['rejected', 'cancelled'].includes(s)
+    default: return true
+  }
+}
+
+const filteredItems = computed(() =>
+  statusFilter.value === 'all'
+    ? items.value
+    : items.value.filter((item) => matchesStatusFilter(item, statusFilter.value))
+)
 
 const columns = computed(() => {
   const base = [
@@ -49,12 +92,12 @@ async function loadRequests() {
       ? await platformApi.getBenefitRequests() 
       : await platformApi.getMyBenefitRequests()
     
-    const rawItems = unwrapItems<any>(data)
-    items.value = rawItems.map((item: any) => ({
+    const rawItems = unwrapItems<BenefitRequest>(data)
+    items.value = rawItems.map((item: BenefitRequest) => ({
       ...item,
       employee_name: item.employee?.name || item.employee?.full_name || 'N/A',
       benefit_name: item.allowance_option?.name || 'Benefit',
-      requested_amount: new Intl.NumberFormat('en-TN', { style: 'currency', currency: 'TND' }).format(item.requested_amount)
+      requested_amount: new Intl.NumberFormat('en-TN', { style: 'currency', currency: 'TND' }).format(Number(item.requested_amount))
     }))
   } catch (error) {
     console.error('Failed to load requests', error)
@@ -63,7 +106,7 @@ async function loadRequests() {
   }
 }
 
-function openReview(request: any) {
+function openReview(request: BenefitRequest) {
   selectedRequest.value = request
   reviewNotes.value = ''
   showReviewModal.value = true
@@ -90,7 +133,7 @@ async function handleAction(action: 'approve' | 'reject') {
     }
     showReviewModal.value = false
     await loadRequests()
-  } catch (error) {
+  } catch {
     errorMsg.value = `Failed to ${action} request.`
   }
 }
@@ -137,9 +180,25 @@ onMounted(loadRequests)
 
     <Card>
       <CardContent class="pt-6">
+        <div class="flex flex-wrap gap-2 mb-4">
+          <button
+            v-for="tab in filterTabs"
+            :key="tab.key"
+            :class="[
+              'inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium transition-colors gap-1.5',
+              statusFilter === tab.key
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+            ]"
+            @click="statusFilter = tab.key"
+          >
+            <component :is="tab.icon" class="h-3.5 w-3.5" />
+            {{ tab.label }}
+          </button>
+        </div>
         <DataTable 
           :columns="columns" 
-          :data="items"
+          :data="filteredItems"
           :loading="isLoading"
           emptyMessage="No benefit requests found."
         >

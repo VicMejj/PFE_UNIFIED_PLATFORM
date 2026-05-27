@@ -22,6 +22,7 @@ const Settings = () => import('@/views/Settings.vue')
 const Notifications = () => import('@/views/Notifications.vue')
 const LeaveRequests = () => import('@/views/LeaveRequests.vue')
 const MyData = () => import('@/views/Employee/MyData.vue')
+const MyPaySlips = () => import('@/views/Employee/MyPaySlips.vue')
 const AssurancePolicies = () => import('@/views/Assurance/Policies.vue')
 const AssuranceClaims = () => import('@/views/Assurance/Claims.vue')
 const AssuranceEmployeeClaims = () => import('@/views/Assurance/EmployeeClaims.vue')
@@ -96,6 +97,7 @@ const routes = [
       // Employee
       { path: 'employee', name: 'employee', component: MyData, meta: { role: 'employee' } },
       { path: 'employee/my-data', redirect: '/employee' },
+      { path: 'employee/pay-slips', name: 'my-pay-slips', component: MyPaySlips, meta: { role: 'employee' } },
 
       // Shared features (Finance, Attendance, Documents)
       { path: 'finance', name: 'finance', component: Finance },

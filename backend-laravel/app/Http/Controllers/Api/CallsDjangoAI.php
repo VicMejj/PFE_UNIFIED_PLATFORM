@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use Illuminate\Support\Facades\Http;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 trait CallsDjangoAI
 {
@@ -13,13 +14,30 @@ trait CallsDjangoAI
     protected function djangoPost(string $path, array $payload = []): \Illuminate\Http\Client\Response
     {
         $djangoUrl = env('DJANGO_AI_URL', 'http://localhost:8001');
-        $jwtToken = request()->header('Authorization'); // "Bearer <token>"
+        $jwtToken = request()->header('Authorization');
 
-        return Http::withHeaders([
-            'Authorization' => $jwtToken,
-            'Content-Type'  => 'application/json',
-            'Accept'        => 'application/json',
-        ])->timeout(10)->post($djangoUrl . $path, $payload);
+        if (! $jwtToken) {
+            try {
+                if ($token = JWTAuth::getToken()) {
+                    $jwtToken = 'Bearer ' . $token;
+                }
+            } catch (\Throwable $exception) {
+                $jwtToken = null;
+            }
+        }
+
+        $headers = [
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+        ];
+
+        if ($jwtToken) {
+            $headers['Authorization'] = $jwtToken;
+        }
+
+        return Http::withHeaders($headers)
+            ->timeout(10)
+            ->post($djangoUrl . $path, $payload);
     }
 
     /**

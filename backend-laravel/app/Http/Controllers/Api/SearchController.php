@@ -22,6 +22,7 @@ class SearchController extends ApiController
             'limit' => 'sometimes|integer|min:1|max:10',
         ]);
 
+        $user = $request->user();
         $q = trim($data['q']);
         $limit = (int) ($data['limit'] ?? 5);
         $like = '%' . addcslashes($q, '%_\\') . '%';
@@ -86,22 +87,42 @@ class SearchController extends ApiController
                 ->values();
         });
 
-        $contracts = $this->safeSearch(function () use ($like, $limit) {
-            return Contract::query()
+        $contracts = $this->safeSearch(function () use ($like, $limit, $user) {
+            $query = Contract::query()
                 ->with(['employee'])
                 ->where(function ($query) use ($like) {
                     $query->where('contract_name', 'like', $like)
                         ->orWhere('status', 'like', $like)
                         ->orWhere('notes', 'like', $like);
-                })
+                });
+
+            if ($this->canManageAllContracts($user)) {
+                $route = '/rh/contracts';
+            } else {
+                $employee = $this->resolveAuthenticatedEmployee($user);
+
+                if (! $employee) {
+                    return collect();
+                }
+
+                $query
+                    ->where('employee_id', $employee->id)
+                    ->where('status', 'signed');
+
+                $route = '/employee';
+            }
+
+            return $query
                 ->limit($limit)
                 ->get()
                 ->map(fn ($contract) => [
                     'id' => $contract->id,
                     'type' => 'contract',
                     'title' => $contract->contract_name ?? "Contract #{$contract->id}",
-                    'subtitle' => $contract->employee?->name ?? $contract->employee?->full_name ?? 'Contract record',
-                    'route' => '/rh/contracts',
+                    'subtitle' => $this->canManageAllContracts($user)
+                        ? ($contract->employee?->name ?? $contract->employee?->full_name ?? 'Contract record')
+                        : 'Signed contract',
+                    'route' => $route,
                 ])
                 ->values();
         });
@@ -205,5 +226,25 @@ class SearchController extends ApiController
 
             return collect();
         }
+    }
+
+    private function canManageAllContracts($user): bool
+    {
+        return (bool) ($user && method_exists($user, 'hasAnyRole') && $user->hasAnyRole([
+            'admin',
+            'rh_manager',
+            'rh',
+            'hr',
+            'manager',
+        ]));
+    }
+
+    private function resolveAuthenticatedEmployee($user): ?Employee
+    {
+        if (! $user) {
+            return null;
+        }
+
+        return Employee::where('user_id', $user->getAuthIdentifier())->first();
     }
 }

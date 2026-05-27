@@ -1,0 +1,604 @@
+% ============================================================
+% CHAPTER 4: SPRINT 2 --- EMPLOYEE AND LEAVE MANAGEMENT
+% ============================================================
+
+\chapter{Sprint 2: Employee and Leave Management}
+
+\chapterplan{
+    \chapterplanitem{1}{sec:s2_intro}{Introduction}
+    \chapterplanitem{2}{sec:s2_analysis}{Specification and Analysis}
+    \chapterplanitem{3}{sec:s2_sequence}{Sequence Diagrams}
+    \chapterplanitem{4}{sec:s2_impl}{Implementation and Endpoints}
+    \chapterplanitem{5}{sec:s2_ui}{Realization and Screenshots}
+    \chapterplanitem{6}{sec:s2_conclusion}{Conclusion}
+}
+
+% ----------------------------------------------------------------
+\section{Introduction}\label{sec:s2_intro}
+% ----------------------------------------------------------------
+
+Sprint~2 transforms the authenticated shell delivered in Sprint~1 into the first operational
+Human Resources module of the platform. Once user authentication, role assignment, and
+organizational reference data are available, the system can move from infrastructure concerns
+to day-to-day HR operations. This sprint therefore introduces the two business capabilities that
+structure the rest of the platform: employee profile management and leave request management.
+
+The first capability establishes the employee as the central business entity of the system.
+Unlike a simple user account, an employee profile connects a person to the company structure
+through branch, department, designation, salary, employment start date, and administrative
+documents. In the implemented platform, the employee record is linked to the underlying
+\texttt{users} table and becomes the entry point reused later by payroll, insurance, social
+benefits, attendance, and AI-assisted analytics.
+
+The second capability introduces the first real approval workflow of the project. Leave requests
+are not treated as static forms; they are processed through a role-aware validation chain in
+which the platform distinguishes between employee submission, manager review, and, when
+required, RH final approval. In code, RH roles are represented by \texttt{rh} and
+\texttt{rh\_manager}; in the present chapter, these are referred to as HR roles for business
+clarity. This workflow gives Sprint~2 a strategic importance: it is the sprint where the
+platform begins to enforce scope, policy, and traceability rather than merely storing data.
+
+Sprint~2 also introduces supporting services that improve operational coherence: attachment
+handling for leave requests, leave balance consultation, holiday-aware working-day calculation,
+attendance consultation, and in-platform notifications with unread tracking. Together, these
+features turn the application into a usable HR workspace rather than a collection of isolated
+CRUD pages.
+
+% ----------------------------------------------------------------
+\section{Specification and Analysis}\label{sec:s2_analysis}
+% ----------------------------------------------------------------
+
+\subsection{Sprint Goal}
+
+The goal of Sprint~2 is to operationalize employee administration and leave processing within a
+single role-governed HR workspace. The sprint is considered successful when the platform allows:
+(1)~creation and maintenance of employee profiles linked to user accounts; (2)~registration and
+consultation of employee-related document references; (3)~submission and review of leave
+requests with policy validation; (4)~consultation of leave balances, attendance records, and
+notifications; and (5)~clear separation between employee actions and management actions.
+
+\subsection{Functional Scope}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{|p{0.20\textwidth}|p{0.53\textwidth}|p{0.19\textwidth}|}
+\hline
+\thead{Workstream} & \thead{Covered Functionality} & \thead{Primary Actors} \\
+\hline
+\rowcolor{tablerowgray}
+Employee directory & Create employee profiles, link them to existing or newly created users,
+assign organizational attributes, update records, view statistics, and manage activation state
+through related user actions. & Admin, RH, RH Manager \\
+\hline
+Employee documents & Maintain employee-document associations and uploaded document metadata
+required for administrative follow-up. & RH, RH Manager \\
+\hline
+\rowcolor{tablerowgray}
+Leave workflow & Submit leave requests, validate date ranges, prevent overlap, attach
+supporting files, route approvals to manager and optionally HR, and register rejection reasons. &
+Employee, Manager, RH \\
+\hline
+Support services & Consult leave balances, holidays, attendance records, and in-platform
+notifications with unread/read state management. & All authenticated users \\
+\hline
+\end{tabular}
+\caption{Functional Scope of Sprint 2}
+\label{tab:s2_scope}
+\end{table}
+
+\subsection{Architectural Decisions and Challenges}
+
+\begin{itemize}
+    \item \textbf{Dual identity model:} the platform distinguishes between a generic
+    authenticated \texttt{user} and a business \texttt{employee}. Sprint~2 must therefore
+    synchronize both layers so that a person can log in while also belonging to a branch,
+    department, and designation.
+    \item \textbf{Employee creation as a transactional process:} employee creation does not
+    simply insert one row. The backend may link an existing user, create a new one if needed,
+    assign a default role, generate an \texttt{employee\_id} automatically when absent
+    (\texttt{EMP-XXXXXXXX}), then persist the employee profile.
+    \item \textbf{Role-aware visibility:} leave and attendance data are not exposed uniformly.
+    Employees see their own requests, while managers and HR-related roles can review broader
+    operational queues according to authorization logic.
+    \item \textbf{Workflow modeled through business state plus approval stage:} the implemented
+    leave process uses both \texttt{status} and \texttt{approval\_stage}. This is more precise
+    than a single status field because it allows the system to represent an intermediate
+    manager-approved state for leave types that still require HR confirmation.
+    \item \textbf{Policy validation before persistence:} the leave controller validates weekends,
+    company holidays, overlapping requests, leave-type maximum duration, and available balance
+    before a request is inserted.
+    \item \textbf{Attachment handling:} leave attachments are validated for type and size
+    (\texttt{pdf}, \texttt{jpg}, \texttt{jpeg}, \texttt{png}, \texttt{webp}, max 10~MB) and
+    stored through Laravel's filesystem abstraction.
+    \item \textbf{Notification consistency:} each important workflow action generates an
+    in-app notification stored with a type, payload, targeting data, and a
+    \texttt{dedup\_key} to avoid duplicates. Read state is maintained separately through the
+    \texttt{notification\_reads} table.
+    \item \textbf{Frontend reactivity without WebSockets:} the Vue.js frontend relies on a
+    notification store and short polling to keep unread counts and approval queues current
+    without introducing real-time infrastructure in this sprint.
+\end{itemize}
+
+\subsection{Sprint Backlog}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{|p{0.10\textwidth}|p{0.62\textwidth}|p{0.15\textwidth}|}
+\hline
+\thead{ID} & \thead{User Story} & \thead{Priority} \\
+\hline
+\rowcolor{tablerowgray}
+S2-1 & As RH staff, I want to create an employee profile linked to a user account so that each
+person has a complete HR identity inside the platform. & Must \\
+\hline
+S2-2 & As an administrator, I want to accept registered users into the employee directory and
+assign their operational role during profile creation. & Must \\
+\hline
+\rowcolor{tablerowgray}
+S2-3 & As RH staff, I want to register employee-related document references so that contracts
+and administrative documents can be tracked per employee. & Must \\
+\hline
+S2-4 & As an employee, I want to submit a leave request with dates, duration, reason, and
+optional attachments so that time-off management becomes digital. & Must \\
+\hline
+\rowcolor{tablerowgray}
+S2-5 & As a manager, I want to review pending leave requests and perform the first validation
+step according to leave type and policy. & Must \\
+\hline
+S2-6 & As RH staff, I want to perform final approval when a leave type requires a second level
+of validation. & Must \\
+\hline
+\rowcolor{tablerowgray}
+S2-7 & As a user, I want to consult leave balances, attendance records, and notifications so
+that I can follow operational status from one workspace. & Should \\
+\hline
+S2-8 & As any concerned actor, I want workflow events to generate notifications with unread
+tracking so that no approval or decision is missed. & Should \\
+\hline
+\end{tabular}
+\caption{Sprint 2 Backlog}
+\label{tab:sprint2_backlog}
+\end{table}
+
+\subsection{Core Use Cases}
+
+To avoid the redundancy often produced by long, repetitive use-case descriptions, Sprint~2 is
+better summarized through a compact matrix of business interactions and system responses.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.28}
+\begin{tabular}{|p{0.14\textwidth}|p{0.14\textwidth}|p{0.30\textwidth}|p{0.34\textwidth}|}
+\hline
+\textbf{ID} & \textbf{Actor} & \textbf{Intent} & \textbf{System Response} \\
+\hline
+\rowcolor{tablerowgray}
+UC-S2-01 & RH / Admin & Create an employee profile from an existing or new user account. &
+The system validates organizational references, generates an \texttt{employee\_id} when
+missing, links or creates the \texttt{user}, assigns roles when authorized, and persists the
+employee record transactionally. \\
+\hline
+UC-S2-02 & RH / Admin & Maintain the employee directory. &
+The system lists employee records with filtering, exposes statistics, and supports activation,
+suspension, or banning actions through related user-state operations. \\
+\hline
+\rowcolor{tablerowgray}
+UC-S2-03 & Employee & Submit a leave request. &
+The system validates dates, excludes weekends and holidays from working days, prevents
+overlap, checks leave balance, stores attachments, and creates a pending request. \\
+\hline
+UC-S2-04 & Manager & Perform first-level leave review. &
+The system allows approval or rejection. For ordinary leave, manager approval may complete the
+workflow; for leave types such as sick leave, approval advances the request to an HR review
+stage. \\
+\hline
+\rowcolor{tablerowgray}
+UC-S2-05 & RH & Perform final leave validation when required. &
+The system converts a manager-approved request into a fully approved request or records a final
+rejection with explanation. \\
+\hline
+UC-S2-06 & Any authenticated user & Consult support information. &
+The system exposes leave balances, attendance records, and notifications, and allows users to
+mark notifications as read individually or in bulk. \\
+\hline
+\end{tabular}
+\caption{Core Use Cases of Sprint 2}
+\label{tab:s2_usecases}
+\end{table}
+
+\subsection{Database Design}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{|p{0.23\textwidth}|p{0.48\textwidth}|p{0.21\textwidth}|}
+\hline
+\thead{Table} & \thead{Key Attributes} & \thead{Relationships / Role} \\
+\hline
+\rowcolor{tablerowgray}
+\texttt{employees} & id, user\_id, name, email, employee\_id, branch\_id, department\_id,
+designation\_id, company\_doj, salary, is\_active, created\_by & Central employee entity;
+FKs to users, branches, departments, designations \\
+\hline
+\texttt{employee\_documents} & id, employee\_id, document\_id, file\_path, file\_name,
+expiry\_date & Links employees to document definitions and stored file metadata \\
+\hline
+\rowcolor{tablerowgray}
+\texttt{leave\_types} & id, name, description, leave\_code, maximum\_days, is\_active &
+Reference catalog for leave requests and balances \\
+\hline
+\texttt{leaves} & id, employee\_id, leave\_type\_id, start\_date, end\_date, duration\_type,
+total\_days, status, approval\_stage, reason, policy\_violations, approved\_by, rejected\_by,
+rejection\_reason, approval\_probability & Core leave workflow entity; belongs to employee and
+leave type \\
+\hline
+\rowcolor{tablerowgray}
+\texttt{leave\_attachments} & id, leave\_id, file\_name, file\_path, file\_type, file\_size &
+Stores metadata for uploaded leave attachments \\
+\hline
+\texttt{leave\_balances} & id, employee\_id, leave\_type\_id, balance
+\footnotemark[1] & Validation source for remaining leave entitlement \\
+\hline
+\rowcolor{tablerowgray}
+\texttt{holidays} & id, name, holiday\_date, description, is\_optional
+\footnotemark[2] & Used to exclude company holidays from working-day computation \\
+\hline
+\texttt{time\_sheets} & id, employee\_id, date, check\_in, check\_out, work\_hours,
+overtime\_hours, notes, status\footnotemark[3] & Operational attendance records consulted in
+Sprint~2 \\
+\hline
+\rowcolor{tablerowgray}
+\texttt{notifications} & id, type, actor\_id, target\_roles, target\_user\_ids, payload,
+channel, dedup\_key & In-app workflow notifications with role and user targeting \\
+\hline
+\texttt{notification\_reads} & id, notification\_id, user\_id, read\_at & Tracks per-user read
+state independently from notification creation \\
+\hline
+\end{tabular}
+\caption{Sprint 2 Core Data Structures}
+\label{tab:s2_db}
+\end{table}
+
+\footnotetext[1]{The \texttt{LeaveBalance} model also exposes a computed \texttt{remaining}
+value used by the leave workflow.}
+\footnotetext[2]{These attributes are used operationally by the leave controller and holiday
+model during working-day evaluation.}
+\footnotetext[3]{The attendance controller uses \texttt{status} when present in the evolved
+schema.}
+
+\subsection{Leave Approval Model}
+
+The leave workflow is best understood as a two-level model. Final business outcome is stored in
+\texttt{status} (\texttt{pending}, \texttt{approved}, \texttt{rejected}), while
+\texttt{approval\_stage} records the path by which the request reached that outcome. This
+design is particularly useful for leave types that require two validations.
+
+\begin{figure}[H]
+    \centering
+    \imageholder{diagram}{%
+        Leave approval model for Sprint 2.
+        Initial state: status=pending, approval\_stage=null.
+        Transition 1: Employee submits request.
+        Transition 2a: Manager approves ordinary leave
+            -> status=approved, approval\_stage=manager\_approved.
+        Transition 2b: Manager approves sick leave
+            -> status remains pending, approval\_stage=manager\_approved.
+        Transition 3: RH approves previously manager-approved sick leave
+            -> status=approved, approval\_stage=hr\_approved.
+        Rejection path: Manager or RH rejects request
+            -> status=rejected, approval\_stage=rejected, rejection reason stored.
+        Terminal states: approved, rejected.
+    }
+    \caption{Leave Approval Model Implemented in Sprint 2}
+    \label{fig:s2_fsm}
+\end{figure}
+
+This model has two advantages. First, it keeps the final state simple for reporting and search.
+Second, it preserves the validation path, which is necessary when one leave type can be fully
+approved by a manager while another must remain pending until RH confirmation.
+
+\subsection{Refined Use Case Diagram}
+
+\begin{figure}[H]
+    \centering
+    \imageholder{diagram}{%
+        Refined use case diagram for Sprint 2.
+        System boundary: Employee and Leave Management.
+        Actors: Employee, Manager, RH Manager, Administrator.
+        Employee use cases:
+            Submit Leave Request;
+            Attach Supporting File;
+            Consult My Leave Requests;
+            Consult Leave Balance;
+            Consult Attendance;
+            Read Notifications.
+        Manager use cases:
+            Review Pending Leave Requests;
+            Approve Leave at Manager Level;
+            Reject Leave Request.
+        RH / Administrator use cases:
+            Create Employee Profile;
+            Accept Pending Registered User;
+            Update Employee Information;
+            Register Employee Document Metadata;
+            Final Approve Leave When Required;
+            Consult Attendance Statistics.
+        Shared technical include:
+            Authenticate via JWT;
+            Apply Role / Permission Checks;
+            Create In-App Notifications.
+    }
+    \caption{Refined Use Case Diagram of Sprint 2}
+    \label{fig:s2_refined_uc}
+\end{figure}
+
+% ----------------------------------------------------------------
+\section{Sequence Diagrams}\label{sec:s2_sequence}
+% ----------------------------------------------------------------
+
+\subsection{Employee Profile Creation and Directory Synchronization}
+
+\begin{figure}[H]
+    \centering
+    \imageholder{diagram}{%
+        Employee creation sequence diagram for Sprint 2.
+        Participants: RH Manager / Admin, Vue Employee Directory, EmployeeController,
+        User model, Employee model, PostgreSQL.
+        Flow:
+        1. Vue loads employees, branches, departments, and designations.
+        2. Admin may also load users without employee profiles.
+        3. Actor opens Create Employee or Accept Pending User form.
+        4. Vue sends POST /api/employees with organizational data and optional user\_id.
+        5. EmployeeController validates input and permissions.
+        6. Transaction begins.
+        7. If user\_id exists, link existing user; otherwise find or create user by email.
+        8. Generate employee\_id automatically if absent.
+        9. Insert employee row linked to selected branch, department, and designation.
+        10. Sync user role when authorized, otherwise assign default role.
+        11. Commit transaction and return created employee resource.
+        12. Vue refreshes directory and shows feedback message.
+    }
+    \caption{Sequence Diagram: Employee Profile Creation}
+    \label{fig:s2_employee_create_sequence}
+\end{figure}
+
+\subsection{Leave Submission and Approval Chain}
+
+\begin{figure}[H]
+    \centering
+    \imageholder{diagram}{%
+        Leave submission and approval sequence diagram for Sprint 2.
+        Participants: Employee, Manager, RH, Vue Leave Requests page, LeaveController,
+        LeaveBalance model, Holiday model, PostgreSQL, Notification subsystem.
+        Flow:
+        1. Employee opens Leave Requests page.
+        2. Vue loads leave types and existing requests.
+        3. Employee submits POST /api/leaves with type, duration, dates, reason,
+           and optional attachments.
+        4. LeaveController resolves employee scope.
+        5. Working days are computed excluding weekends and holidays.
+        6. Controller checks overlap, leave-type maximum duration,
+           and remaining leave balance.
+        7. If validation fails, return 422 with field errors.
+        8. If validation succeeds, insert leave row with status=pending.
+        9. Store each attachment in leave-specific storage path and create metadata rows.
+        10. Create a deduplicated notification for management roles.
+        11. Manager reviews the request and calls POST /api/leaves/\{id\}/approve-by-manager
+            or POST /api/leaves/\{id\}/reject.
+        12. For leave types requiring RH confirmation, approval\_stage becomes
+            manager\_approved while status remains pending.
+        13. RH performs POST /api/leaves/\{id\}/approve-by-hr when a second validation
+            is required.
+        14. Employee receives notification of approval or rejection.
+    }
+    \caption{Sequence Diagram: Leave Submission and Approval Chain}
+    \label{fig:s2_leave_sequence}
+\end{figure}
+
+% ----------------------------------------------------------------
+\section{Implementation and Endpoints}\label{sec:s2_impl}
+% ----------------------------------------------------------------
+
+\subsection{Implementation Approach}
+
+Sprint~2 is implemented as a collaboration between a Laravel API backend and a Vue.js single-page
+frontend. On the backend side, employee management is handled by
+\texttt{EmployeeController}; leave processing is handled by \texttt{LeaveController}; attendance
+consultation is handled by \texttt{AttendanceController}; and notification delivery is exposed
+through \texttt{NotificationController}. The implementation combines classical CRUD operations
+with custom workflow endpoints for approval actions.
+
+On the frontend side, the employee directory and leave requests pages act as operational
+workspaces rather than simple forms. The employee directory integrates record creation, pending
+user acceptance, status management, and statistical consultation. The leave page combines
+submission, queue consultation, approval actions, and attachment handling in the same interface.
+Notifications are centralized in a Pinia store and refreshed periodically, which keeps the
+approval cycle usable without a WebSocket infrastructure.
+
+\subsection{API Endpoint Specification}
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.26}
+\begin{tabular}{|p{0.08\textwidth}|p{0.34\textwidth}|p{0.44\textwidth}|}
+\hline
+\thead{Method} & \thead{Endpoint URI} & \thead{Purpose} \\
+\hline
+\rowcolor{tablerowgray}
+GET & \texttt{/api/employees} & List employee profiles with optional search, branch,
+department, and designation filters. \\
+\hline
+POST & \texttt{/api/employees} & Create an employee profile and link or create the underlying
+user account. \\
+\hline
+\rowcolor{tablerowgray}
+GET & \texttt{/api/employees/\{id\}} & Retrieve one employee profile with organizational
+relations. \\
+\hline
+PUT / PATCH & \texttt{/api/employees/\{id\}} & Update employee information. \\
+\hline
+\rowcolor{tablerowgray}
+DELETE & \texttt{/api/employees/\{id\}} & Remove an employee record when authorized. \\
+\hline
+GET & \texttt{/api/employees/\{id\}/statistics} & Return employee-level statistics used by
+the RH directory and analytics cards. \\
+\hline
+\rowcolor{tablerowgray}
+GET / POST & \texttt{/api/employees/employee-documents} & List or create employee-document
+association records. \\
+\hline
+GET / POST & \texttt{/api/employees/document-uploads} & Manage generic uploaded document
+metadata referenced by employee workflows. \\
+\hline
+\rowcolor{tablerowgray}
+GET & \texttt{/api/leaves} & List leave requests with role-aware visibility. \\
+\hline
+POST & \texttt{/api/leaves} & Submit a leave request with policy validation and optional
+attachments. \\
+\hline
+\rowcolor{tablerowgray}
+GET & \texttt{/api/leaves/\{id\}} & Retrieve one leave request. \\
+\hline
+PUT / PATCH & \texttt{/api/leaves/\{id\}} & Update an existing leave request when permitted. \\
+\hline
+\rowcolor{tablerowgray}
+DELETE & \texttt{/api/leaves/\{id\}} & Delete a leave request when permitted. \\
+\hline
+POST & \texttt{/api/leaves/\{id\}/attachments} & Upload one or more files associated with a
+leave request. \\
+\hline
+\rowcolor{tablerowgray}
+GET & \texttt{/api/leaves/\{leaveId\}/attachments/\{attachmentId\}/download} &
+Download a stored leave attachment. \\
+\hline
+POST & \texttt{/api/leaves/\{id\}/approve-by-manager} & Perform the manager approval step. \\
+\hline
+\rowcolor{tablerowgray}
+POST & \texttt{/api/leaves/\{id\}/approve-by-hr} & Perform final RH approval when the leave
+type requires it. \\
+\hline
+POST & \texttt{/api/leaves/\{id\}/reject} & Reject a leave request and persist the reason. \\
+\hline
+\rowcolor{tablerowgray}
+GET / POST & \texttt{/api/leaves/types} & Consult or manage the leave type catalog. \\
+\hline
+GET / POST & \texttt{/api/leaves/balances} & Consult or manage leave balances. \\
+\hline
+\rowcolor{tablerowgray}
+GET / POST & \texttt{/api/leaves/holidays} & Consult or manage company holidays used in
+working-day evaluation. \\
+\hline
+GET & \texttt{/api/attendance} & List attendance data in a role-scoped manner. \\
+\hline
+\rowcolor{tablerowgray}
+GET / POST & \texttt{/api/attendance/records} & Consult or create attendance records. \\
+\hline
+PUT / DELETE & \texttt{/api/attendance/records/\{id\}} & Update or delete attendance records. \\
+\hline
+\rowcolor{tablerowgray}
+GET & \texttt{/api/attendance/statistics} & Return aggregated attendance indicators for a
+selected period. \\
+\hline
+GET & \texttt{/api/notifications} & List visible in-app notifications for the authenticated
+user. \\
+\hline
+\rowcolor{tablerowgray}
+POST & \texttt{/api/notifications/\{id\}/mark-read} & Mark one notification as read. \\
+\hline
+POST & \texttt{/api/notifications/mark-all-read} & Mark all visible notifications as read. \\
+\hline
+\rowcolor{tablerowgray}
+GET & \texttt{/api/notifications/unread-count} & Return the number of unread notifications. \\
+\hline
+\end{tabular}
+\caption{Sprint 2 Core Endpoint Specification}
+\label{tab:s2_endpoints}
+\end{table}
+
+\paragraph{Complementary implementation note.}
+The current platform also exposes \texttt{/api/leaves/request-insights} and
+\texttt{/api/leaves/optimal-dates} as non-blocking AI-assisted helpers. These enrich the user
+experience of Sprint~2 but remain complementary to the core business scope described in this
+chapter.
+
+% ----------------------------------------------------------------
+\section{Realization and Screenshots}\label{sec:s2_ui}
+% ----------------------------------------------------------------
+
+\begin{figure}[H]
+    \centering
+    \imageholder{screenshot}{%
+        Employee Directory screen (Sprint 2, RH/Admin workspace).
+        Header: icon, title "Employee Directory", subtitle, and "Add Employee" button.
+        Optional alert banner for registered users waiting for a full employee profile.
+        Creation form fields: name, email, gender, role, branch, department, designation,
+        salary, and address. Main table columns: employee ID, name, email, salary, status.
+        Row actions: AI Risk, Suspend, Ban, Activate, or Accept for pending profiles.
+        Right-side insight card shows turnover prediction and recommendations for the selected
+        employee.
+    }
+    \caption{Sprint 2 --- Employee Directory and Profile Creation}
+    \label{fig:s2_employee_ui}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \imageholder{screenshot}{%
+        Leave Requests screen (Sprint 2, shared employee and manager workspace).
+        Top hero section shows request counters and current access mode.
+        Left card: leave submission form with employee selector for manager view, leave type,
+        duration toggle, start date, end date, selected range summary, reason textarea,
+        and multi-file attachment input.
+        Right card: searchable queue overview table with employee, period, duration, status,
+        and reason. Supporting panels explain approval workflow and display AI suggestions.
+        For management roles, a lower approval area exposes Approve and Reject buttons for
+        pending requests.
+    }
+    \caption{Sprint 2 --- Leave Submission and Approval Workspace}
+    \label{fig:s2_leave_ui}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \imageholder{screenshot}{%
+        Notifications screen (Sprint 2).
+        Title "Notifications", refresh action, "Mark All as Read" button,
+        unread counter, and filter chips for All and Unread.
+        Main list displays notification cards with title, message, timestamp, and action link.
+        Read status is individualized per user and synchronized with the top-bar notification bell.
+    }
+    \caption{Sprint 2 --- Notification Center}
+    \label{fig:s2_notifications_ui}
+\end{figure}
+
+% ----------------------------------------------------------------
+\section{Conclusion}\label{sec:s2_conclusion}
+% ----------------------------------------------------------------
+
+Sprint~2 marks the transition from a technically prepared platform to an operational HR system.
+Its main contribution is not only the addition of new tables and pages, but the installation of a
+reusable pattern for the rest of the project: a central employee entity, role-scoped business
+actions, explicit validation rules, and in-app feedback through notifications.
+
+The employee directory created in this sprint gives the application its first real business
+backbone. Every major functional area that follows---payroll, insurance, benefits, and
+analytics---relies on the existence of a coherent employee record linked to the authentication
+layer and the organizational structure. The leave module, in turn, introduces approval-chain
+logic, policy-aware validation, attachment support, and operational traceability.
+
+From an architectural perspective, Sprint~2 is also where the platform begins to combine backend
+authorization with frontend usability. The same Vue workspaces support both data entry and queue
+supervision, while Laravel enforces scope and workflow rules at API level. This separation of
+concerns is essential for the next iterations of the project.
+
+Sprint~3 can therefore build on a stable business foundation: employee identities are
+established, leave workflows are controlled, attendance consultation is available, and
+notifications already connect actions to users. The platform is now ready to extend its HR
+coverage toward payroll production, social-service workflows, and more advanced decision support.

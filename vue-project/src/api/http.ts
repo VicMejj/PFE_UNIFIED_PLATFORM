@@ -55,13 +55,27 @@ export const djangoApi = axios.create({
   baseURL: djangoBaseUrl,
   timeout: 10000,
   headers: {
-    'Content-Type': 'application/json',
     Accept: 'application/json'
   }
 })
 
-djangoApi.interceptors.request.use(attachAuthToken)
+// Interceptor to set Content-Type correctly based on request data
+djangoApi.interceptors.request.use((config) => {
+  config = attachAuthToken(config)
+  // Set Content-Type to application/json only for POST/PUT/PATCH with non-FormData
+  if (config.data && !(config.data instanceof FormData)) {
+    config.headers['Content-Type'] = 'application/json'
+  } else if (!config.data && ['POST', 'PUT', 'PATCH'].includes(config.method?.toUpperCase() || '')) {
+    // For requests with no data that are POST/PUT/PATCH
+    config.headers['Content-Type'] = 'application/json'
+  }
+  return config
+})
+
 djangoApi.interceptors.response.use((response) => response, handleUnauthorized)
+
+const suppressedApiWarningTimestamps = new Map<string, number>()
+const SUPPRESSED_API_WARNING_INTERVAL_MS = 60_000
 
 export function unwrapResponse<T>(response: any): T {
   if (response?.data?.data !== undefined) {
@@ -111,9 +125,34 @@ export function formatAxiosError(error: any): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+export function getApiErrorMessage(error: any, fallback = 'Something went wrong.'): string {
+  if (axios.isAxiosError(error)) {
+    const validationErrors = error.response?.data?.errors
+    if (validationErrors && typeof validationErrors === 'object') {
+      for (const messages of Object.values(validationErrors)) {
+        if (Array.isArray(messages) && messages.length > 0) {
+          return String(messages[0])
+        }
+      }
+    }
+
+    const serverMessage = error.response?.data?.message || error.response?.data?.error
+    if (typeof serverMessage === 'string' && serverMessage.trim()) {
+      return serverMessage.trim()
+    }
+  }
+
+  return fallback
+}
+
 export function logApiError(context: string, error: any) {
   if (isNetworkOrServerUnavailable(error)) {
-    console.warn(`[API] ${context}: Network unavailable (suppressed)`)
+    const now = Date.now()
+    const lastLoggedAt = suppressedApiWarningTimestamps.get(context) ?? 0
+    if (now - lastLoggedAt >= SUPPRESSED_API_WARNING_INTERVAL_MS) {
+      suppressedApiWarningTimestamps.set(context, now)
+      console.warn(`[API] ${context}: Network unavailable (suppressed)`)
+    }
     return
   }
   console.error(`[API] ${context} failed:`, formatAxiosError(error))

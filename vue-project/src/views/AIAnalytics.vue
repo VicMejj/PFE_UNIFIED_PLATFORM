@@ -672,7 +672,7 @@ onMounted(async () => {
             <div v-for="(assessment, idx) in loanAssessments.slice(0, 8)" :key="idx" class="flex items-center justify-between border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-900/20">
               <div>
                 <p class="font-semibold">Employee #{{ assessment.employee_id }}</p>
-                <p class="text-sm text-gray-600 dark:text-gray-400">Loan: ${{ assessment.loan_amount.toLocaleString() }}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400">Loan: TND {{ assessment.loan_amount.toLocaleString() }}</p>
                 <p class="text-xs text-gray-500">{{ new Date(assessment.timestamp).toLocaleString() }}</p>
               </div>
               <div class="flex items-center gap-3">

@@ -181,9 +181,7 @@ export const djangoAiApi = {
     const formData = new FormData()
     formData.append('document', file)
 
-    const response = await djangoApi.post('/ai/ocr/process/', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    const response = await djangoApi.post('/ai/ocr/process/', formData)
     return unwrapResponse(response)
   },
 
@@ -191,9 +189,7 @@ export const djangoAiApi = {
     const formData = new FormData()
     formData.append('document', file)
 
-    const response = await djangoApi.post('/ai/document/classify/', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    const response = await djangoApi.post('/ai/document/classify/', formData)
     return unwrapResponse(response)
   },
 

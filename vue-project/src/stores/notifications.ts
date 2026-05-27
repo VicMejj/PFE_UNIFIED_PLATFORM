@@ -1,13 +1,14 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { platformApi, type NotificationItem } from '@/api/laravel/platform'
-import { getUserReadNotificationsKey, logApiError } from '@/api/http'
+import { getUserReadNotificationsKey, isNetworkOrServerUnavailable, logApiError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 
 export const useNotificationsStore = defineStore('notifications', () => {
   const items = ref<NotificationItem[]>([])
   const isLoading = ref(false)
   const unreadCount = computed(() => items.value.filter((item) => !item.read).length)
+  let nextRetryAt = 0
 
   function getReadIds(): string[] {
     const auth = useAuthStore()
@@ -28,7 +29,12 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }))
   }
 
-  async function fetchNotifications() {
+  async function fetchNotifications(force = false) {
+    const shouldForce = force === true
+    if (!shouldForce && Date.now() < nextRetryAt) {
+      return
+    }
+
     isLoading.value = true
     try {
       const laravelItems = await platformApi.getNotifications()
@@ -37,7 +43,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
       )
 
       items.value = applyReadState(combined)
+      nextRetryAt = 0
     } catch (error) {
+      if (isNetworkOrServerUnavailable(error)) {
+        nextRetryAt = Date.now() + 30_000
+      }
       logApiError('Fetch notifications', error)
     } finally {
       isLoading.value = false

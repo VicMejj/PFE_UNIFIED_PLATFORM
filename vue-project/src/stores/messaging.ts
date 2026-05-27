@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { messagingApi, type ChatMessage, type ConversationUser, type MessagingContact, type SendMessagePayload } from '@/api/laravel/messaging'
+import { isNetworkOrServerUnavailable, logApiError } from '@/api/http'
 
 type ChatStatus = ChatMessage['status']
 type RealtimeStatus = 'idle' | 'connecting' | 'live' | 'fallback'
@@ -21,6 +22,7 @@ export const useMessagingStore = defineStore('messaging', () => {
   const realtimeAvailable = ref(false)
   const realtimeStatus = ref<RealtimeStatus>('idle')
   let tempMessageId = -1
+  let unreadCountRetryAt = 0
 
   const hasActiveConversation = computed(() => activeUserId.value !== null)
 
@@ -179,11 +181,20 @@ export const useMessagingStore = defineStore('messaging', () => {
     }
   }
 
-  async function fetchUnreadCount() {
+  async function fetchUnreadCount(force = false) {
+    const shouldForce = force === true
+    if (!shouldForce && Date.now() < unreadCountRetryAt) {
+      return
+    }
+
     try {
       unreadCount.value = await messagingApi.getUnreadCount()
+      unreadCountRetryAt = 0
     } catch (error) {
-      console.error('Failed to fetch unread count:', error)
+      if (isNetworkOrServerUnavailable(error)) {
+        unreadCountRetryAt = Date.now() + 30_000
+      }
+      logApiError('Fetch unread count', error)
     }
   }
 
@@ -192,7 +203,7 @@ export const useMessagingStore = defineStore('messaging', () => {
       const status = await messagingApi.getOnlineStatus()
       onlineUsers.value = status.online_users || []
     } catch (error) {
-      console.error('Failed to set online status:', error)
+      logApiError('Set online status', error)
     }
   }
 
@@ -200,7 +211,7 @@ export const useMessagingStore = defineStore('messaging', () => {
     try {
       await messagingApi.setOfflineStatus()
     } catch (error) {
-      console.error('Failed to set offline status:', error)
+      logApiError('Set offline status', error)
     }
   }
 
